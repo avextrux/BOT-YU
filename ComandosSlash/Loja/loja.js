@@ -1,0 +1,48 @@
+const Discord = require("discord.js");
+const { formatMoney } = require("../../Utils/economy");
+
+module.exports = {
+    name: "loja",
+    description: "Veja os itens disponíveis para compra",
+    type: "CHAT_INPUT",
+    run: async (client, interaction) => {
+        try {
+            const guildEco = client.guildEconomydb?.getOrCreate ? await client.guildEconomydb.getOrCreate(interaction.guild.id) : null;
+            const inflation = guildEco?.crisis?.active && String(guildEco.crisis.type || "").toLowerCase().includes("infla");
+            const priceMult = inflation ? 1.25 : 1;
+
+            const itens = await client.shopdb.find({ guildID: interaction.guild.id, hidden: { $ne: true } });
+
+            if (!itens || itens.length === 0) {
+                return interaction.reply({ 
+                    embeds: [new Discord.MessageEmbed()
+                        .setTitle("🏪 Loja Vazia")
+                        .setColor("YELLOW")
+                        .setDescription("Ainda não há itens na loja deste servidor.\nPeça para um moderador adicionar itens usando `/loja-admin criar`.")
+                    ]
+                });
+            }
+
+            const embed = new Discord.MessageEmbed()
+                .setTitle(`🏪 Loja de ${interaction.guild.name}`)
+                .setColor("GOLD")
+                .setDescription("Use `/comprar [id]` para adquirir um item.")
+                .setThumbnail(interaction.guild.iconURL({ dynamic: true }));
+
+            itens.forEach(item => {
+                const price = Math.floor((item.price || 0) * priceMult);
+                let detalhes = `🆔 **ID:** \`${item.itemID}\`\n💰 **Preço:** ${formatMoney(price)}${inflation ? " (inflação)" : ""}\n📝 **Desc:** ${item.description}`;
+                if (item.roleID) {
+                    detalhes += `\n🎁 **Prêmio:** <@&${item.roleID}>`;
+                }
+                embed.addFields({ name: `📦 ${item.name}`, value: detalhes, inline: true });
+            });
+
+            interaction.reply({ embeds: [embed] });
+
+        } catch (err) {
+            console.error(err);
+            interaction.reply({ content: "Erro ao carregar a loja.", ephemeral: true });
+        }
+    }
+};

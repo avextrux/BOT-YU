@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "canvas": "^3.2.1",
+    "discord.js": "^13.17.1",
+    "moment": "^2.30.1",
+    "mongoose": "^9.1.5"
+  }
+}
