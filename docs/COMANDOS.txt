@@ -1,5 +1,5 @@
 BOT-YU — LISTA DE COMANDOS
-Gerado em: 02/02/2026, 16:31:11
+Gerado em: 02/02/2026, 17:26:37
 
 Como organizar no servidor (sugestão):
 - Canal #anuncios-evento: anúncios e atrações
@@ -105,7 +105,16 @@ Legenda:
 
 /extrato — Mostra suas últimas movimentações
 
-/investigar — Polícia econômica: investigue suspeitos do mercado negro
+/faccao — Gangues do submundo: formar facções e disputar território
+  - /faccao listar — Lista facções do servidor
+  - /faccao territorios — Mostra controle territorial
+  - /faccao sair — Sai da sua facção
+  - /faccao criar nome:string tag?:string — Cria uma facção criminosa
+  - /faccao entrar id:string — Entra em uma facção
+  - /faccao info id?:string — Mostra info de uma facção
+  - /faccao influenciar distrito:string pontos:integer — Compra influência em um território (dinheiro -> influência)
+
+/investigar — Polícia econômica: coletar pistas contra um suspeito
 
 /mercado — Negócios do servidor: crie anúncios e venda/compre coisas
   - /mercado listar — Lista anúncios ativos
@@ -114,9 +123,19 @@ Legenda:
   - /mercado cancelar id:string — Cancela um anúncio (vendedor/admin)
   - /mercado minhas — Lista seus anúncios
 
-/mercadonegro — Área ilegal: alto risco, alto retorno
-  - /mercadonegro comprar aposta:number — Compra uma caixa ilegal
-  - /mercadonegro status — Mostra seu status no mercado negro
+/mercadonegro — Evento do submundo: itens ilícitos, reputação, risco e perseguição
+  - /mercadonegro comprar aposta:number — Abre uma caixa ilegal (cassino clandestino)
+  - /mercadonegro status — Mostra seu status no submundo
+  - /mercadonegro evento_ativar — Ativa o evento do mercado negro (admin)
+  - /mercadonegro evento_desativar — Desativa o evento do mercado negro (admin)
+  - /mercadonegro vendedores — Mostra NPCs e inventários atuais
+  - /mercadonegro item_comprar npc:string item:string quantidade:integer distrito?:string — Compra item ilícito de um NPC
+  - /mercadonegro item_vender item:string quantidade:integer distrito?:string — Vende item ilícito (se tiver no inventário)
+  - /mercadonegro inventario — Mostra seus itens ilícitos
+  - /mercadonegro configurar canal?:channel ping_everyone?:boolean — Configura canal de anúncios do evento (admin)
+  - /mercadonegro ranking — Ranking dos maiores criminosos (lucro)
+  - /mercadonegro missoes — Mostra missões diárias e semanais
+  - /mercadonegro missao_resgatar id:string — Resgata recompensa de uma missão concluída
 
 /pay — Transfira dinheiro para outro usuário
 
@@ -129,6 +148,15 @@ Legenda:
   - /policia aceitar usuario:user — Aceita candidatura (chefe/admin)
   - /policia recusar usuario:user — Recusa candidatura (chefe/admin)
   - /policia remover usuario:user — Remove policial (chefe/admin)
+  - /policia patrulhar distrito?:string — Faz uma patrulha e tenta encontrar pistas
+  - /policia checkpoint distrito:string — Coloca um checkpoint estratégico
+  - /policia casos — Lista casos abertos do submundo
+  - /policia caso_ver id:string — Vê detalhes de um caso
+  - /policia caso_investigar id:string — Avança a investigação de um caso
+  - /policia caso_capturar id:string — Finaliza um caso e tenta capturar o suspeito
+  - /policia ranking — Ranking dos policiais mais eficientes
+  - /policia missoes — Mostra missões policiais
+  - /policia missao_resgatar id:string — Resgata missão policial concluída
   - /policia status usuario?:user — Mostra status da polícia
 
 /politica — Política econômica do servidor
@@ -174,7 +202,7 @@ Legenda:
 
 
 == OUTROS ==
-/eventohelp — Ajuda administrativa do evento Grande Eleição (somente ADM)
+/eventohelp — Ajuda administrativa do evento Submundo (somente ADM)
 
 /gif — Busca um GIF no GIPHY
 

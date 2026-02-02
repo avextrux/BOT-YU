@@ -1,0 +1,20 @@
+@everyone
+
+💣 **EVENTO SUBMUNDO — MERCADO NEGRO x POLÍCIA** começou!
+
+A cidade virou palco de rivalidade: **NPCs** vendem itens ilícitos com **preço dinâmico**, gangues disputam **territórios** e a **Polícia Econômica** monta checkpoints, investiga e fecha casos.
+
+✅ Comece agora:
+- Criminoso: `/mercadonegro vendedores` → `/mercadonegro item_comprar`
+- Polícia: `/policia candidatar` → `/policia patrulhar`
+- Gangues: `/faccao criar` ou `/faccao entrar`
+
+🏆 Premiação e ranking:
+- `/mercadonegro ranking` (lucro do submundo)
+- `/policia ranking` (apreensões e casos)
+
+📌 Regras rápidas:
+Rivalidade e RP liberados. Proibido: ameaças reais, doxxing, assédio e spam tóxico. Anti-cheat ativo.
+
+🔥 Bora movimentar o servidor: escolha seu lado e faça história.
+

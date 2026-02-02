@@ -30,44 +30,47 @@ module.exports = {
             if (!allowed) return interaction.reply({ content: "❌ Apenas administração do servidor pode ver este help.", ephemeral: true });
 
             const embed = new Discord.MessageEmbed()
-                .setTitle("🎪 Grande Eleição — Ajuda ADM")
-                .setColor("DARK_GOLD")
+                .setTitle("💣 Evento Submundo — Ajuda ADM")
+                .setColor("DARK_BUT_NOT_BLACK")
                 .setDescription(
                     [
-                        "Este painel lista apenas comandos de **administração** do evento.",
+                        "Este painel lista apenas comandos de **administração** do evento Submundo.",
                         "",
                         "Sequência recomendada:",
-                        "1) Configurar canal e voteshop",
-                        "2) Anunciar o evento",
-                        "3) Iniciar a eleição (2 semanas ou mais)",
-                        "4) Financiar prêmios via Banco Central",
+                        "1) Configurar canal de anúncios do evento",
+                        "2) Definir chefe de polícia e abrir candidaturas",
+                        "3) Ativar o Mercado Negro",
+                        "4) Financiar prêmios e recompensas via Tesouro",
                     ].join("\n")
                 )
                 .addFields(
                     {
                         name: "Configuração do evento",
                         value: [
-                            "• `/eleicao configurar canal:#canal ping_everyone:true|false`",
-                            "• `/eleicao configurar_voteshop ativado:true|false preco_base:500 incremento:50`",
+                            "• `/mercadonegro configurar canal:#canal ping_everyone:true|false`",
+                            "• `/mercadonegro evento_ativar` / `/mercadonegro evento_desativar`",
+                            "• `/policia definir_chefe usuario:@Chefe`",
                             "• `/bancocentral configurar_dono usuario:@Dono` (opcional)",
                             "• `/bancocentral gerente_adicionar usuario:@X escopo:(tudo|tesouro|votos|eventos|loja|negocios)`",
                         ].join("\n"),
                         inline: false,
                     },
                     {
-                        name: "Anúncios e atrações",
+                        name: "Operação (polícia)",
                         value: [
-                            "• `/eleicao anunciar_evento canal:#canal ping_everyone:true|false`",
-                            "• `/eleicao forcar_atracao` (promoção relâmpago de votos)",
-                            "• Atrações aleatórias também podem disparar automaticamente durante a eleição",
+                            "• `/policia candidatar` (jogadores pedem entrada)",
+                            "• `/policia aceitar|recusar` (chefe/admin)",
+                            "• `/policia checkpoint` (interceptações)",
+                            "• `/policia casos` (monitorar casos)",
                         ].join("\n"),
                         inline: false,
                     },
                     {
-                        name: "Operação da eleição",
+                        name: "Operação (submundo)",
                         value: [
-                            "• `/eleicao iniciar duracao_min:20160` (2 semanas)",
-                            "• `/eleicao encerrar` (fecha e anuncia resultado)",
+                            "• Facções: `/faccao criar` e `/faccao territorios`",
+                            "• Missões: `/mercadonegro missoes` e `/policia missoes`",
+                            "• Ranking: `/mercadonegro ranking` e `/policia ranking`",
                         ].join("\n"),
                         inline: false,
                     },
