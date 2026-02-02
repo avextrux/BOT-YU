@@ -22,6 +22,11 @@ try {
     client.playerBankdb = require("./Database/playerBank.js");
     client.policedb = require("./Database/police.js");
     client.marketOfferdb = require("./Database/marketOffer.js");
+    client.blackMarketGuilddb = require("./Database/blackMarketGuild.js");
+    client.blackMarketUserdb = require("./Database/blackMarketUser.js");
+    client.policeCasedb = require("./Database/policeCase.js");
+    client.factiondb = require("./Database/faction.js");
+    client.territorydb = require("./Database/territory.js");
 } catch (e) {
     console.error("❌ Erro ao carregar Schemas do Banco de Dados:", e);
 }

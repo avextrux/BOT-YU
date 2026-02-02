@@ -1,6 +1,6 @@
 const Discord = require("discord.js");
 const { getRandomGifUrl } = require("../../Utils/giphy");
-const { formatMoney } = require("../../Utils/economy");
+const { formatMoney, creditWallet } = require("../../Utils/economy");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
 const { getPolice, isOfficer } = require("../../Utils/police");
 
@@ -17,7 +17,7 @@ function hasRecentBlackMarket(userdb, windowMs) {
 
 module.exports = {
     name: "investigar",
-    description: "Polícia econômica: investigue suspeitos do mercado negro",
+    description: "Polícia econômica: coletar pistas contra um suspeito",
     type: "CHAT_INPUT",
     options: [
         { name: "usuario", description: "Suspeito", type: "USER", required: true },
@@ -54,53 +54,77 @@ module.exports = {
 
             const tdb = await client.userdb.getOrCreate(target.id);
             const suspicious = hasRecentBlackMarket(tdb, 30 * 60 * 1000);
-            const chance = suspicious ? 0.65 : 0.15;
-            const caught = Math.random() < chance;
+            const chance = suspicious ? 0.70 : 0.20;
+            const found = Math.random() < chance;
 
-            const gifQuery = caught ? "police arrest" : "police search";
+            const gifQuery = found ? "police investigation" : "police search";
             const gif =
                 (await getRandomGifUrl(gifQuery, { rating: "pg-13" }).catch(() => null)) ||
                 "https://media.giphy.com/media/26BRBupaJvXQy1m7S/giphy.gif";
 
             const embed = new Discord.MessageEmbed()
                 .setTitle("🕵️ Investigação")
-                .setColor(caught ? "GREEN" : "GREY")
+                .setColor(found ? "GREEN" : "GREY")
                 .setImage(gif);
 
-            if (caught) {
-                const mins = suspicious ? 45 : 20;
-                if (!tdb.economia.restrictions) tdb.economia.restrictions = { bannedUntil: 0 };
-                tdb.economia.restrictions.bannedUntil = Math.max(tdb.economia.restrictions.bannedUntil || 0, now + mins * 60 * 1000);
-                tdb.economia.transactions.push({ at: now, type: "police_ban", walletDelta: 0, bankDelta: 0, meta: { by: interaction.user.id, mins } });
-                tdb.economia.transactions = tdb.economia.transactions.slice(-50);
-                await tdb.save();
-
-                const reward = suspicious ? 500 : 200;
-                const u2 = await client.userdb.findOneAndUpdate(
-                    { userID: interaction.user.id },
-                    {
-                        $inc: { "economia.money": reward },
-                        $push: {
-                            "economia.transactions": {
-                                $each: [{ at: now, type: "police_reward", walletDelta: reward, bankDelta: 0, meta: { target: target.id } }],
-                                $slice: -50,
-                            },
-                        },
-                    },
-                    { new: true }
-                );
-
-                embed.setDescription(
-                    `✅ Você encontrou provas contra ${target}.\n` +
-                        `⛔ Ban econômico: **${mins} min**\n` +
-                        `💰 Recompensa: **${formatMoney(reward)}**\n` +
-                        `Seu saldo: **${formatMoney(u2.economia.money || 0)}**`
-                );
-            } else {
-                embed.setDescription(`❌ Nada encontrado contra ${target}.`);
+            if (!found) {
+                embed.setDescription(`❌ Nada concreto encontrado contra ${target}.`);
+                return interaction.reply({ embeds: [embed], ephemeral: true });
             }
 
-            return interaction.reply({ embeds: [embed] });
+            if (!client.policeCasedb) {
+                embed.setDescription(`✅ Pistas encontradas contra ${target}, mas o banco de casos não está disponível.`);
+                return interaction.reply({ embeds: [embed], ephemeral: true });
+            }
+
+            const existing = await client.policeCasedb.findOne({ guildID: interaction.guildId, status: "open", suspectId: target.id }).sort({ createdAt: -1 });
+            const inc = Math.floor(15 + chance * 25);
+            const estimated = Math.floor(500 + chance * 2000);
+            let caseId = "";
+            let progress = 0;
+
+            if (existing) {
+                existing.progress = Math.min(100, Math.floor((existing.progress || 0) + inc));
+                existing.estimatedValue = Math.max(existing.estimatedValue || 0, estimated);
+                existing.evidence.push({ at: now, kind: "investigation", by: interaction.user.id, data: { suspicious } });
+                existing.evidence = existing.evidence.slice(-50);
+                await existing.save().catch(() => {});
+                caseId = existing.caseId;
+                progress = existing.progress;
+            } else {
+                caseId = `CASE${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+                await client.policeCasedb.create({
+                    guildID: interaction.guildId,
+                    caseId,
+                    createdAt: now,
+                    status: "open",
+                    suspectId: target.id,
+                    assignedTo: interaction.user.id,
+                    progress: Math.floor(25 + chance * 25),
+                    riskScore: Math.floor(chance * 100),
+                    estimatedValue: estimated,
+                    evidence: [{ at: now, kind: "investigation", by: interaction.user.id, data: { suspicious } }],
+                });
+                progress = Math.floor(25 + chance * 25);
+            }
+
+            const eco = await client.guildEconomydb.getOrCreate(interaction.guildId);
+            if (!eco.policy) eco.policy = {};
+            if (eco.policy.treasury === undefined || eco.policy.treasury === null) eco.policy.treasury = 0;
+            const reward = suspicious ? 250 : 100;
+            const paid = Math.min(reward, Math.floor(eco.policy.treasury || 0));
+            eco.policy.treasury = Math.floor((eco.policy.treasury || 0) - paid);
+            await eco.save().catch(() => {});
+            if (paid > 0) await creditWallet(client.userdb, interaction.user.id, paid, "police_clue_reward", { guildId: interaction.guildId, caseId }).catch(() => {});
+
+            embed.setDescription(
+                `✅ Pistas encontradas contra ${target}.\n` +
+                `🗂️ Caso: **${caseId}**\n` +
+                `📈 Progresso: **${progress}%**\n` +
+                `💰 Recompensa (tesouro): **${formatMoney(paid)}**`
+            );
+
+            return interaction.reply({ embeds: [embed], ephemeral: true });
         } catch (err) {
             console.error(err);
             interaction.reply({ content: "Erro ao investigar.", ephemeral: true }).catch(() => {});

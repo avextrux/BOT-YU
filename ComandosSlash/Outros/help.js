@@ -60,10 +60,10 @@ module.exports = {
             });
 
             options.unshift({
-                label: "Evento: Grande Eleição",
-                description: "Como funciona, duração e comandos principais",
-                emoji: "🗳️",
-                value: "__EVENT_ELECTION__"
+                label: "Evento: Submundo (Mercado Negro x Polícia)",
+                description: "Lore, regras e comandos principais do evento",
+                emoji: "💣",
+                value: "__EVENT_SUBWORLD__"
             });
 
             if (hasAdminPerm) {
@@ -73,12 +73,24 @@ module.exports = {
                     emoji: "🎪",
                     value: "__EVENT_ADMIN__"
                 });
-                options.push({
-                    label: "ADM",
-                    description: "Comandos administrativos (eleição/política/crises)",
-                    emoji: "👑",
-                    value: "__ADM__"
-                });
+                const hasAdminCategory = options.some((o) => String(o.value || "").toLowerCase() === "admin");
+                if (!hasAdminCategory) {
+                    options.push({
+                        label: "ADM",
+                        description: "Comandos administrativos (eleição/política/crises)",
+                        emoji: "👑",
+                        value: "__ADM__"
+                    });
+                }
+            }
+
+            const seen = new Set();
+            const deduped = [];
+            for (const opt of options) {
+                const key = String(opt.value);
+                if (seen.has(key)) continue;
+                seen.add(key);
+                deduped.push(opt);
             }
 
             const row = new Discord.MessageActionRow()
@@ -86,7 +98,7 @@ module.exports = {
                     new Discord.MessageSelectMenu()
                         .setCustomId('menu_help')
                         .setPlaceholder('Selecione uma categoria...')
-                        .addOptions(options)
+                        .addOptions(deduped)
                 );
 
             const msg = await interaction.reply({ embeds: [embed], components: [row], fetchReply: true });
@@ -100,42 +112,51 @@ module.exports = {
 
                 const categoriaSelecionada = i.values[0];
 
-                if (categoriaSelecionada === "__EVENT_ELECTION__") {
-                    const now = Date.now();
-                    const endsAt = now + 14 * 24 * 60 * 60 * 1000;
+                if (categoriaSelecionada === "__EVENT_SUBWORLD__") {
                     const eventEmbed = new Discord.MessageEmbed()
-                        .setTitle("🗳️ Grande Eleição — Evento do Servidor (2 semanas)")
-                        .setColor("GOLD")
+                        .setTitle("💣 Evento: Submundo — Mercado Negro x Polícia")
+                        .setColor("DARK_BUT_NOT_BLACK")
                         .setDescription(
                             [
-                                "A Grande Eleição define o **Presidente Econômico** do servidor.",
-                                "Durante o evento, os candidatos fazem campanha e a comunidade vota.",
+                                "O submundo virou arena. **NPCs** vendem mercadoria ilícita com preço dinâmico e a **Polícia Econômica** caça pistas, monta checkpoints e fecha casos.",
                                 "",
-                                `⏳ Duração sugerida: **2 semanas** (ex.: de agora até <t:${Math.floor(endsAt / 1000)}:f>).`,
+                                "✅ Liberdade total: você pode ser criminoso, policial, ou alternar lados.",
                             ].join("\n")
                         )
                         .addFields(
                             {
-                                name: "Como participar",
+                                name: "Criminoso (Mercado Negro)",
                                 value: [
-                                    "• `/eleicao candidatar` para entrar na disputa",
-                                    "• `/eleicao votar usuario:@candidato` para votar (1 voto por pessoa)",
-                                    "• `/eleicao status` para ver candidatos e tempo restante",
-                                    "• `/politica status` para ver o presidente e regras econômicas atuais",
+                                    "• `/mercadonegro vendedores`",
+                                    "• `/mercadonegro item_comprar` / `/mercadonegro item_vender`",
+                                    "• `/mercadonegro inventario`",
+                                    "• `/mercadonegro ranking` / `/mercadonegro missoes`",
+                                    "• `/faccao criar|entrar|territorios`",
                                 ].join("\n"),
                                 inline: false,
                             },
                             {
-                                name: "Regras básicas",
+                                name: "Polícia",
                                 value: [
-                                    "• Campanha respeitosa (sem spam/assédio)",
-                                    "• Sem compra de votos / golpes / ameaças",
-                                    "• Quebrou regra: sujeito a punição da moderação",
+                                    "• `/policia candidatar` / `/policia status`",
+                                    "• `/policia patrulhar` / `/policia checkpoint`",
+                                    "• `/policia casos` / `/policia caso_ver`",
+                                    "• `/policia caso_investigar` / `/policia caso_capturar`",
+                                    "• `/policia ranking` / `/policia missoes`",
+                                ].join("\n"),
+                                inline: false,
+                            },
+                            {
+                                name: "Regras rápidas",
+                                value: [
+                                    "• Rivalidade e RP valem: alianças, propaganda e blefes são permitidos",
+                                    "• Proibido: ameaças reais, doxxing, assédio e golpes fora do RP",
+                                    "• Anti-cheat ativo: spam de ações pode bloquear temporariamente",
                                 ].join("\n"),
                                 inline: false,
                             }
                         )
-                        .setFooter({ text: "Dica: admin pode anunciar o evento no canal do servidor." });
+                        .setFooter({ text: "Dica: admin configura anúncios com /mercadonegro configurar." });
 
                     return i.update({ embeds: [eventEmbed], components: [row] });
                 }
@@ -149,25 +170,25 @@ module.exports = {
                     }
 
                     const adminEventEmbed = new Discord.MessageEmbed()
-                        .setTitle("🎪 Grande Eleição — Painel ADM")
+                        .setTitle("🎪 Evento Submundo — Painel ADM")
                         .setColor("DARK_GOLD")
                         .setDescription("Comandos de administração do evento (visível apenas para ADM).")
                         .addFields(
                             {
                                 name: "Configuração",
                                 value: [
-                                    "• `/eleicao configurar canal:#canal ping_everyone:true|false`",
-                                    "• `/eleicao anunciar_evento canal:#canal ping_everyone:true|false`",
-                                    "• `/eleicao configurar_voteshop ativado:true|false preco_base:500 incremento:50`",
+                                    "• `/mercadonegro configurar canal:#canal ping_everyone:true|false`",
+                                    "• `/mercadonegro evento_ativar` / `/mercadonegro evento_desativar`",
+                                    "• `/policia definir_chefe usuario:@X`",
                                 ].join("\n"),
                                 inline: false,
                             },
                             {
                                 name: "Operação",
                                 value: [
-                                    "• `/eleicao iniciar duracao_min:20160` (2 semanas) ou mais",
-                                    "• `/eleicao encerrar` (fecha e anuncia resultado)",
-                                    "• `/eleicao forcar_atracao` (promoção relâmpago)",
+                                    "• Incentive rivalidade: checkpoints, patrulhas e casos",
+                                    "• Use o tesouro para prêmios e recompensas",
+                                    "• Atrações automáticas rolam (leilão relâmpago)",
                                 ].join("\n"),
                                 inline: false,
                             },
@@ -181,7 +202,7 @@ module.exports = {
                                 inline: false,
                             },
                             {
-                                name: "Contexto econômico",
+                                name: "Economia e regras",
                                 value: [
                                     "• `/politica set` (presidente/admin)",
                                     "• `/crise iniciar|encerrar` (admin)",

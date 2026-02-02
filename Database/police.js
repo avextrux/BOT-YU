@@ -7,6 +7,20 @@ const PoliceSchema = new Schema({
     chiefId: { type: String, default: null },
     officers: { type: [String], default: [] },
 
+    officerStats: {
+        type: Map,
+        of: {
+            seizuresValue: { type: Number, default: 0 },
+            seizuresCount: { type: Number, default: 0 },
+            casesClosed: { type: Number, default: 0 },
+            patrols: { type: Number, default: 0 },
+            checkpoints: { type: Number, default: 0 },
+            xp: { type: Number, default: 0 },
+            lastActionAt: { type: Number, default: 0 },
+        },
+        default: {},
+    },
+
     requests: {
         type: [
             {

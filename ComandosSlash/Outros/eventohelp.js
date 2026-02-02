@@ -21,7 +21,7 @@ function hasCentralScope(eco, userId) {
 
 module.exports = {
     name: "eventohelp",
-    description: "Ajuda administrativa do evento Grande Eleição (somente ADM)",
+    description: "Ajuda administrativa do evento Submundo (somente ADM)",
     type: "CHAT_INPUT",
     run: async (client, interaction) => {
         try {
