@@ -20,6 +20,24 @@ module.exports = {
 
             // Ler categorias dinamicamente
             const categorias = fs.readdirSync("./ComandosSlash/");
+            const ordemPreferida = [
+                "Economia",
+                "Diversao",
+                "Interacao",
+                "Utilidade",
+                "Loja",
+                "Moderacao",
+                "Outros",
+                "Admin",
+            ];
+            categorias.sort((a, b) => {
+                const ia = ordemPreferida.findIndex((x) => x.toLowerCase() === a.toLowerCase());
+                const ib = ordemPreferida.findIndex((x) => x.toLowerCase() === b.toLowerCase());
+                const ra = ia === -1 ? 999 : ia;
+                const rb = ib === -1 ? 999 : ib;
+                if (ra !== rb) return ra - rb;
+                return a.localeCompare(b, "pt-BR");
+            });
             const options = [];
 
             categorias.forEach(categoria => {
@@ -28,6 +46,10 @@ module.exports = {
                 if (categoria.toLowerCase() === 'outros') emoji = '🌐';
                 if (categoria.toLowerCase() === 'utilidade') emoji = '🛠️';
                 if (categoria.toLowerCase() === 'moderacao') emoji = '🛡️';
+                if (categoria.toLowerCase() === 'diversao') emoji = '🎲';
+                if (categoria.toLowerCase() === 'interacao') emoji = '🤝';
+                if (categoria.toLowerCase() === 'loja') emoji = '🛒';
+                if (categoria.toLowerCase() === 'admin') emoji = '👑';
 
                 options.push({
                     label: categoria,
@@ -37,7 +59,20 @@ module.exports = {
                 });
             });
 
+            options.unshift({
+                label: "Evento: Grande Eleição",
+                description: "Como funciona, duração e comandos principais",
+                emoji: "🗳️",
+                value: "__EVENT_ELECTION__"
+            });
+
             if (hasAdminPerm) {
+                options.push({
+                    label: "Evento (ADM)",
+                    description: "Comandos do evento (apenas administração)",
+                    emoji: "🎪",
+                    value: "__EVENT_ADMIN__"
+                });
                 options.push({
                     label: "ADM",
                     description: "Comandos administrativos (eleição/política/crises)",
@@ -64,6 +99,99 @@ module.exports = {
                 }
 
                 const categoriaSelecionada = i.values[0];
+
+                if (categoriaSelecionada === "__EVENT_ELECTION__") {
+                    const now = Date.now();
+                    const endsAt = now + 14 * 24 * 60 * 60 * 1000;
+                    const eventEmbed = new Discord.MessageEmbed()
+                        .setTitle("🗳️ Grande Eleição — Evento do Servidor (2 semanas)")
+                        .setColor("GOLD")
+                        .setDescription(
+                            [
+                                "A Grande Eleição define o **Presidente Econômico** do servidor.",
+                                "Durante o evento, os candidatos fazem campanha e a comunidade vota.",
+                                "",
+                                `⏳ Duração sugerida: **2 semanas** (ex.: de agora até <t:${Math.floor(endsAt / 1000)}:f>).`,
+                            ].join("\n")
+                        )
+                        .addFields(
+                            {
+                                name: "Como participar",
+                                value: [
+                                    "• `/eleicao candidatar` para entrar na disputa",
+                                    "• `/eleicao votar usuario:@candidato` para votar (1 voto por pessoa)",
+                                    "• `/eleicao status` para ver candidatos e tempo restante",
+                                    "• `/politica status` para ver o presidente e regras econômicas atuais",
+                                ].join("\n"),
+                                inline: false,
+                            },
+                            {
+                                name: "Regras básicas",
+                                value: [
+                                    "• Campanha respeitosa (sem spam/assédio)",
+                                    "• Sem compra de votos / golpes / ameaças",
+                                    "• Quebrou regra: sujeito a punição da moderação",
+                                ].join("\n"),
+                                inline: false,
+                            }
+                        )
+                        .setFooter({ text: "Dica: admin pode anunciar o evento no canal do servidor." });
+
+                    return i.update({ embeds: [eventEmbed], components: [row] });
+                }
+
+                if (categoriaSelecionada === "__EVENT_ADMIN__") {
+                    const canOpen =
+                        i.member?.permissions?.has("ADMINISTRATOR") ||
+                        i.member?.permissions?.has("MANAGE_GUILD");
+                    if (!canOpen) {
+                        return i.reply({ content: "❌ Apenas administradores podem abrir esta aba.", ephemeral: true });
+                    }
+
+                    const adminEventEmbed = new Discord.MessageEmbed()
+                        .setTitle("🎪 Grande Eleição — Painel ADM")
+                        .setColor("DARK_GOLD")
+                        .setDescription("Comandos de administração do evento (visível apenas para ADM).")
+                        .addFields(
+                            {
+                                name: "Configuração",
+                                value: [
+                                    "• `/eleicao configurar canal:#canal ping_everyone:true|false`",
+                                    "• `/eleicao anunciar_evento canal:#canal ping_everyone:true|false`",
+                                    "• `/eleicao configurar_voteshop ativado:true|false preco_base:500 incremento:50`",
+                                ].join("\n"),
+                                inline: false,
+                            },
+                            {
+                                name: "Operação",
+                                value: [
+                                    "• `/eleicao iniciar duracao_min:20160` (2 semanas) ou mais",
+                                    "• `/eleicao encerrar` (fecha e anuncia resultado)",
+                                    "• `/eleicao forcar_atracao` (promoção relâmpago)",
+                                ].join("\n"),
+                                inline: false,
+                            },
+                            {
+                                name: "Banco Central (tesouro)",
+                                value: [
+                                    "• `/bancocentral status`",
+                                    "• `/bancocentral gerente_adicionar usuario:@X escopo:(...)`",
+                                    "• `/bancocentral pagar usuario:@X valor:1000 motivo:...`",
+                                ].join("\n"),
+                                inline: false,
+                            },
+                            {
+                                name: "Contexto econômico",
+                                value: [
+                                    "• `/politica set` (presidente/admin)",
+                                    "• `/crise iniciar|encerrar` (admin)",
+                                ].join("\n"),
+                                inline: false,
+                            }
+                        );
+
+                    return i.update({ embeds: [adminEventEmbed], components: [row] });
+                }
 
                 if (categoriaSelecionada === "__ADM__") {
                     const canOpen =

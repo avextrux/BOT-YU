@@ -12,6 +12,19 @@ const GuildEconomySchema = new Schema({
         treasury: { type: Number, default: 0 },
     },
 
+    centralBank: {
+        ownerId: { type: String, default: null },
+        managers: {
+            type: [
+                {
+                    userId: { type: String, required: true },
+                    scopes: { type: [String], default: [] },
+                },
+            ],
+            default: [],
+        },
+    },
+
     crisis: {
         active: { type: Boolean, default: false },
         type: { type: String, default: null },
@@ -25,7 +38,19 @@ const GuildEconomySchema = new Schema({
         endsAt: { type: Number, default: 0 },
         candidates: { type: [String], default: [] },
         votes: { type: Map, of: Number, default: {} },
+        paidVotes: { type: Map, of: Number, default: {} },
         voters: { type: [String], default: [] },
+        announceChannelId: { type: String, default: null },
+        pingEveryone: { type: Boolean, default: false },
+        voteShop: {
+            enabled: { type: Boolean, default: true },
+            basePrice: { type: Number, default: 500 },
+            increment: { type: Number, default: 50 },
+            sold: { type: Number, default: 0 },
+            lastEventAt: { type: Number, default: 0 },
+            boostUntil: { type: Number, default: 0 },
+            boostMultiplier: { type: Number, default: 1.0 },
+        },
     },
 }, { minimize: false });
 

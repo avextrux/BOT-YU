@@ -1,4 +1,14 @@
 {
+  "name": "bot-yu",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "gen:cmds": "node tools/generateCommandsTxt.js"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "dependencies": {
     "canvas": "^3.2.1",
     "discord.js": "^13.17.1",
