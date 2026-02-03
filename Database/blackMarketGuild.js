@@ -41,6 +41,8 @@ const BlackMarketGuildSchema = new Schema(
             weeklyResetAt: { type: Number, default: 0, index: true },
             discountUntil: { type: Number, default: 0 },
             discountMultiplier: { type: Number, default: 1.0 },
+            eventCooldownMs: { type: Number, default: 10 * 60 * 1000 },
+            eventCooldownUntil: { type: Number, default: 0 },
             eventProbs: {
                 discount: { type: Number, default: 0.05 },
                 raid: { type: Number, default: 0.05 },
@@ -57,6 +59,17 @@ const BlackMarketGuildSchema = new Schema(
                     until: { type: Number, default: 0 },
                     itemId: { type: String, default: null },
                 },
+            },
+            eventLog: {
+                lastRaidEndAt: { type: Number, default: 0 },
+                lastShortageEndAt: { type: Number, default: 0 },
+                lastSurplusEndAt: { type: Number, default: 0 },
+                lastDiscountEndAt: { type: Number, default: 0 },
+            },
+            activityRequirements: {
+                level2: { type: Number, default: 50 },
+                level3: { type: Number, default: 200 },
+                level4: { type: Number, default: 500 },
             },
         },
 

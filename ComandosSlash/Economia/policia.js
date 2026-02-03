@@ -58,6 +58,23 @@ module.exports = {
     name: "policia",
     description: "Hub da Polícia: patrulhas, checkpoints, casos, ranking e missões",
     type: "CHAT_INPUT",
+    hubActions: [
+        "Status — chefe, oficiais e seu status",
+        "Candidatar — entrar para a polícia",
+        "Pedidos (chefe) — ver pendentes",
+        "Aceitar pedido (chefe) — aprovar candidato",
+        "Recusar pedido (chefe) — recusar candidato",
+        "Definir chefe (ADM) — admin define chefe",
+        "Patrulhar — buscar pistas e casos",
+        "Checkpoint — aumenta interceptações",
+        "Casos — listar abertos",
+        "Ver caso — detalhes",
+        "Investigar caso — avançar progresso",
+        "Capturar caso — fechar e apreender",
+        "Missões — missões policiais",
+        "Resgatar missão — pegar recompensa",
+        "Ranking — melhores policiais",
+    ],
     run: async (client, interaction) => {
         try {
             if (!client.policedb || !client.policeCasedb || !client.blackMarketGuilddb || !client.blackMarketUserdb || !client.guildEconomydb || !client.userdb) {

@@ -16,6 +16,15 @@ module.exports = {
     name: "eleicao",
     description: "Hub de Eleições e Política (Votar, Candidatar, Comprar Voto)",
     type: "CHAT_INPUT",
+    hubActions: [
+        "Status & Placar — ver quem está ganhando",
+        "Candidatar-se — entrar na disputa",
+        "Votar — 1 voto gratuito",
+        "Comprar votos — via modal (dinheiro do bot)",
+        "Retirar candidatura — desistir",
+        "Regras — guia rápido",
+        "Admin: Gerenciar — iniciar/encerrar e toggle voteshop",
+    ],
     run: async (client, interaction) => {
         try {
             const eco = await client.guildEconomydb.getOrCreate(interaction.guildId);

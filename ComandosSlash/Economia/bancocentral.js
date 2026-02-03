@@ -44,6 +44,14 @@ module.exports = {
     name: "bancocentral",
     description: "Banco Central do servidor (tesouro e gestão do evento)",
     type: "CHAT_INPUT",
+    hubActions: [
+        "status — ver tesouro e gestão",
+        "configurar_dono — definir dono (admin)",
+        "gerente_adicionar — dar escopo (admin/dono)",
+        "gerente_remover — remover gerente (admin/dono)",
+        "pagar — pagar via tesouro (admin/gerente)",
+        "depositar — depositar via carteira",
+    ],
     options: [
         { name: "status", description: "Mostra o saldo e a gestão", type: "SUB_COMMAND" },
         {
@@ -196,19 +204,14 @@ module.exports = {
                 const amount = Math.max(1, Math.floor(interaction.options.getInteger("valor") || 0));
                 const motivo = interaction.options.getString("motivo");
 
-                if ((eco.policy.treasury || 0) < amount) {
-                    // Modo infinito: Apenas avisa que está "imprimindo" dinheiro se o tesouro for baixo, mas permite.
-                    // return interaction.reply({ content: `❌ Tesouro insuficiente. Saldo: ${formatMoney(eco.policy.treasury || 0)}.`, ephemeral: true });
+                const infinite = isOwner(interaction.user.id, eco) || isAdminMember(interaction);
+                if (!infinite && (eco.policy.treasury || 0) < amount) {
+                    return interaction.reply({ content: `❌ Tesouro insuficiente. Saldo: ${formatMoney(eco.policy.treasury || 0)}.`, ephemeral: true });
                 }
-
-                // Opcional: manter o tesouro atualizado mesmo que vá para negativo, ou apenas não descontar.
-                // O usuário pediu "dinheiro infinito", então vamos apenas NÃO descontar se for Admin/Dono, 
-                // mas se for um "Gerente" com escopo limitado, talvez devesse descontar?
-                // O pedido foi "banco central ter dinheiro infinito". Então vamos assumir que ele gera inflação.
-                
-                // Se quiser manter contabilidade:
-                eco.policy.treasury = Math.floor((eco.policy.treasury || 0) - amount);
-                await eco.save();
+                if (!infinite) {
+                    eco.policy.treasury = Math.floor((eco.policy.treasury || 0) - amount);
+                    await eco.save();
+                }
 
                 await creditWallet(
                     client.userdb,

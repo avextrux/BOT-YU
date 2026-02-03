@@ -56,7 +56,7 @@ async function tick() {
                         `Por **${minutes} minutos**, a compra de votos está com desconto!`,
                         `Multiplicador de preço: **x${mult}**`,
                         "",
-                        "Use: `/eleicao comprar_voto usuario:@candidato quantidade:5`",
+                        "Use: `/eleicao` → **Comprar Votos** (menu)",
                     ].join("\n")
                 );
 

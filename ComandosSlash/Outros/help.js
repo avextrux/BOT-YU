@@ -1,5 +1,6 @@
 const Discord = require("discord.js");
 const fs = require("fs");
+const path = require("path");
 
 module.exports = {
     name: "help",
@@ -7,217 +8,292 @@ module.exports = {
     type: "CHAT_INPUT",
     run: async (client, interaction) => {
         try {
+            const root = path.resolve(__dirname, "..", "..");
+            const commandsRoot = path.join(root, "ComandosSlash");
+
             const hasAdminPerm =
                 interaction.member?.permissions?.has("ADMINISTRATOR") ||
                 interaction.member?.permissions?.has("MANAGE_GUILD");
 
-            // --- PÁGINA INICIAL (HOME) ---
+            function safeReadDir(p) {
+                try {
+                    return fs.readdirSync(p);
+                } catch {
+                    return [];
+                }
+            }
+
+            function padLine(s = "") {
+                return String(s).replace(/\r?\n/g, " ").trim();
+            }
+
+            function flattenOptions(options) {
+                if (!Array.isArray(options)) return [];
+                const subs = [];
+                for (const opt of options) {
+                    if (!opt) continue;
+                    if (opt.type === "SUB_COMMAND") {
+                        subs.push({ type: "sub", name: opt.name, description: opt.description || "", options: opt.options || [] });
+                    } else if (opt.type === "SUB_COMMAND_GROUP") {
+                        const groupName = opt.name;
+                        const groupOptions = Array.isArray(opt.options) ? opt.options : [];
+                        for (const sub of groupOptions) {
+                            if (!sub || sub.type !== "SUB_COMMAND") continue;
+                            subs.push({ type: "groupSub", group: groupName, name: sub.name, description: sub.description || "", options: sub.options || [] });
+                        }
+                    }
+                }
+                return subs;
+            }
+
+            function optionSignature(opts) {
+                if (!Array.isArray(opts) || opts.length === 0) return "";
+                const parts = [];
+                for (const o of opts) {
+                    if (!o || !o.name) continue;
+                    const t = (o.type || "").toLowerCase();
+                    const req = o.required ? "" : "?";
+                    parts.push(`${o.name}${req}:${t || "arg"}`);
+                }
+                return parts.length ? ` ${parts.join(" ")}` : "";
+            }
+
+            function loadCommand(filePath) {
+                try {
+                    delete require.cache[require.resolve(filePath)];
+                    const mod = require(filePath);
+                    if (!mod || !mod.name) return null;
+                    return mod;
+                } catch {
+                    return null;
+                }
+            }
+
+            function normalizeHubActions(cmd) {
+                if (!cmd) return [];
+                if (Array.isArray(cmd.hubActions)) return cmd.hubActions.filter(Boolean).map(String);
+                if (cmd.hub && Array.isArray(cmd.hub.actions)) return cmd.hub.actions.filter(Boolean).map(String);
+                return [];
+            }
+
+            function categoryEmoji(name) {
+                const n = String(name || "").toLowerCase();
+                if (n === "economia") return "💵";
+                if (n === "diversao") return "🎲";
+                if (n === "interacao") return "🤝";
+                if (n === "utilidade") return "🛠️";
+                if (n === "loja") return "🛒";
+                if (n === "moderacao") return "🛡️";
+                if (n === "outros") return "🌐";
+                if (n === "admin") return "👑";
+                return "📁";
+            }
+
+            const categories = safeReadDir(commandsRoot).filter((d) => {
+                try {
+                    return fs.statSync(path.join(commandsRoot, d)).isDirectory();
+                } catch {
+                    return false;
+                }
+            });
+
+            categories.sort((a, b) => a.localeCompare(b, "pt-BR"));
+
+            function buildCascadeForCategory(categoryName) {
+                const dir = path.join(commandsRoot, categoryName);
+                const files = safeReadDir(dir).filter((f) => f.endsWith(".js")).sort((a, b) => a.localeCompare(b, "pt-BR"));
+                const lines = [];
+                for (const f of files) {
+                    const cmd = loadCommand(path.join(dir, f));
+                    if (!cmd) continue;
+                    lines.push(`/${cmd.name} — ${padLine(cmd.description || "Sem descrição")}`);
+                    const hubActions = normalizeHubActions(cmd);
+                    if (hubActions.length) {
+                        lines.push(`  • HUB: ${hubActions.slice(0, 8).map((x) => padLine(x)).join(" | ")}${hubActions.length > 8 ? " | ..." : ""}`);
+                    }
+                    const subs = flattenOptions(cmd.options);
+                    for (const s of subs) {
+                        const base = `/${cmd.name}`;
+                        const full = s.type === "groupSub" ? `${base} ${s.group} ${s.name}` : `${base} ${s.name}`;
+                        const sig = optionSignature(s.options);
+                        lines.push(`  • ${full}${sig} — ${padLine(s.description || "Sem descrição")}`);
+                    }
+                }
+                const text = lines.join("\n");
+                if (text.length <= 3800) return text;
+                return text.slice(0, 3770) + "\n...\n(Use o arquivo docs/COMANDOS.txt para ver tudo.)";
+            }
+
             const embedHome = new Discord.MessageEmbed()
-                .setTitle('📚 Central de Ajuda & Guias')
+                .setTitle("📚 Central de Ajuda")
                 .setColor("BLURPLE")
                 .setDescription(
-                    `Seja bem-vindo à central de informações do servidor.\n\n` +
-                    `**O que você procura hoje?**\n` +
-                    `💣 **Evento Submundo**: Tudo sobre o RP de Facções vs Polícia.\n` +
-                    `🤖 **Comandos Gerais**: Diversão, economia básica e utilidades.\n` +
-                    `👑 **Administração**: Painel para staff.`
+                    [
+                        "Escolha o que você quer ver:",
+                        "💣 Evento Submundo (guias + hubs + eventos)",
+                        "🤖 Comandos (em cascata por categoria)",
+                        hasAdminPerm ? "👑 Admin (painel staff)" : "👑 Admin (bloqueado)",
+                    ].join("\n")
                 )
                 .setThumbnail(client.user.displayAvatarURL())
                 .setFooter({ text: `Solicitado por ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() });
 
-            const rowHome = new Discord.MessageActionRow().addComponents(
-                new Discord.MessageButton()
-                    .setCustomId('help_btn_event')
-                    .setLabel('Evento Submundo')
-                    .setEmoji('💣')
-                    .setStyle('DANGER'),
-                new Discord.MessageButton()
-                    .setCustomId('help_btn_general')
-                    .setLabel('Comandos Gerais')
-                    .setEmoji('🤖')
-                    .setStyle('PRIMARY'),
-                new Discord.MessageButton()
-                    .setCustomId('help_btn_admin')
-                    .setLabel('Admin')
-                    .setEmoji('👑')
-                    .setStyle('SECONDARY')
-                    .setDisabled(!hasAdminPerm)
+            const homeRow = new Discord.MessageActionRow().addComponents(
+                new Discord.MessageButton().setCustomId("help_home_event").setLabel("Evento Submundo").setStyle("DANGER"),
+                new Discord.MessageButton().setCustomId("help_home_cmds").setLabel("Comandos").setStyle("PRIMARY"),
+                new Discord.MessageButton().setCustomId("help_home_admin").setLabel("Admin").setStyle("SECONDARY").setDisabled(!hasAdminPerm)
             );
 
-            const msg = await interaction.reply({ 
-                embeds: [embedHome], 
-                components: [rowHome], 
-                fetchReply: true 
-            });
+            const msg = await interaction.reply({ embeds: [embedHome], components: [homeRow], fetchReply: true, ephemeral: true });
+
+            const backRow = new Discord.MessageActionRow().addComponents(
+                new Discord.MessageButton().setCustomId("help_back_home").setLabel("Voltar").setStyle("SECONDARY")
+            );
+
+            const eventHubs = [
+                { id: "mercadonegro", label: "Mercado Negro", value: "hub_mercadonegro", emoji: "💣", file: path.join(commandsRoot, "Economia", "mercadonegro.js") },
+                { id: "faccao", label: "Facções", value: "hub_faccao", emoji: "🏴", file: path.join(commandsRoot, "Economia", "faccao.js") },
+                { id: "policia", label: "Polícia", value: "hub_policia", emoji: "👮", file: path.join(commandsRoot, "Economia", "policia.js") },
+                { id: "eleicao", label: "Eleições", value: "hub_eleicao", emoji: "🗳️", file: path.join(commandsRoot, "Economia", "eleicao.js") },
+                { id: "bancocentral", label: "Banco Central", value: "hub_bancocentral", emoji: "🏦", file: path.join(commandsRoot, "Economia", "bancocentral.js") },
+                { id: "config_evento", label: "Config Evento (ADM)", value: "hub_config_evento", emoji: "🛠️", file: path.join(commandsRoot, "Admin", "config_evento.js") },
+            ];
+
+            const hubSelect = new Discord.MessageSelectMenu()
+                .setCustomId("help_select_hub")
+                .setPlaceholder("Ver ações de um HUB...")
+                .addOptions(
+                    eventHubs.map((h) => ({
+                        label: h.label,
+                        value: h.value,
+                        emoji: h.emoji,
+                        description: `Ações do /${h.id}`,
+                    }))
+                );
+
+            const hubRow = new Discord.MessageActionRow().addComponents(hubSelect);
+
+            const generalSelect = new Discord.MessageSelectMenu()
+                .setCustomId("help_select_category_general")
+                .setPlaceholder("Escolha uma categoria...")
+                .addOptions(
+                    categories
+                        .filter((c) => String(c).toLowerCase() !== "admin")
+                        .map((c) => ({
+                            label: c,
+                            value: `cat_${c}`,
+                            emoji: categoryEmoji(c),
+                            description: `Comandos de ${c}`,
+                        }))
+                        .slice(0, 25)
+                );
+
+            const generalRow = new Discord.MessageActionRow().addComponents(generalSelect);
+
+            const adminSelect = new Discord.MessageSelectMenu()
+                .setCustomId("help_select_category_admin")
+                .setPlaceholder("Escolha uma área (staff)...")
+                .addOptions(
+                    ["Admin", "Moderacao", "Economia"].map((c) => ({
+                        label: c,
+                        value: `acat_${c}`,
+                        emoji: categoryEmoji(c),
+                        description: `Cascata de ${c}`,
+                    }))
+                );
+
+            const adminRow = new Discord.MessageActionRow().addComponents(adminSelect);
 
             const collector = msg.createMessageComponentCollector({ idle: 120000 });
 
-            collector.on('collect', async i => {
-                if (i.user.id !== interaction.user.id) {
-                    return i.reply({ content: `Use /help para abrir seu próprio menu.`, ephemeral: true });
-                }
+            collector.on("collect", async (i) => {
+                try {
+                    if (i.user.id !== interaction.user.id) return i.reply({ content: "Use /help para abrir seu próprio menu.", ephemeral: true });
 
-                // --- EVENTO SUBMUNDO ---
-                if (i.customId === 'help_btn_event') {
-                    const embedEvent = new Discord.MessageEmbed()
-                        .setTitle("💣 Guia do Evento: Submundo")
-                        .setColor("DARK_RED")
-                        .setDescription(
-                            "O **Submundo** é um evento de RP (Roleplay) e Economia onde duas forças colidem:\n" +
-                            "O **Mercado Negro** (criminosos, facções) e a **Polícia**.\n\n" +
-                            "**Como participar?**\n" +
-                            "Escolha seu lado. Não é necessário registro formal, basta começar a usar os comandos do seu lado.\n\n" +
-                            "**Principais Hubs (Use estes comandos!):**"
-                        )
-                        .addFields(
-                            { 
-                                name: "💀 Para Criminosos", 
-                                value: "> `/faccao` - Crie sua org, domine territórios, venda drogas.\n> `/mercadonegro` - Compre armas, aceite missões, veja o ranking.", 
-                                inline: false 
-                            },
-                            { 
-                                name: "👮 Para Policiais", 
-                                value: "> `/policia` - Aliste-se, patrulhe, investigue crimes e prenda criminosos.", 
-                                inline: false 
-                            },
-                            {
-                                name: "💰 Economia & Política",
-                                value: "> `/bancocentral` - (Admin/Gerente) Tesouro do servidor.\n> `/eleicao` - Vote em representantes.",
-                                inline: false
-                            }
-                        )
-                        .setImage("https://media.discordapp.net/attachments/1327129759292559444/1336048039206256722/SUBMUNDO_BANNER.png?ex=67a11680&is=679fc500&hm=0a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p") // Placeholder visual se tiver
-                        .setFooter({ text: "Use o botão 'Voltar' para o menu principal." });
-
-                    const rowEvent = new Discord.MessageActionRow().addComponents(
-                        new Discord.MessageButton().setCustomId('help_btn_home').setLabel('Voltar').setStyle('SECONDARY')
-                    );
-                    
-                    return i.update({ embeds: [embedEvent], components: [rowEvent] });
-                }
-
-                // --- COMANDOS GERAIS (CATEGORIAS) ---
-                if (i.customId === 'help_btn_general') {
-                    // Ler categorias
-                    const categorias = fs.readdirSync("./ComandosSlash/").filter(c => !["Admin", "Outros", "Economia"].includes(c)); 
-                    // Nota: "Economia" tem muita coisa do evento, mas também tem 'atm', 'pay'. 
-                    // Vamos incluir Economia mas filtrar comandos do evento depois se quiser, ou deixar tudo.
-                    // O usuário quer "Geral" separado de "Evento".
-                    
-                    // Vamos criar um Select Menu para as categorias clássicas
-                    const cats = ["Economia", "Diversao", "Interacao", "Utilidade", "Loja", "Moderacao"];
-                    
-                    const options = cats.map(cat => {
-                        let emoji = '📁';
-                        if (cat === 'Economia') emoji = '💵';
-                        if (cat === 'Diversao') emoji = '🎲';
-                        if (cat === 'Utilidade') emoji = '🛠️';
-                        if (cat === 'Moderacao') emoji = '🛡️';
-                        if (cat === 'Interacao') emoji = '🫂';
-                        if (cat === 'Loja') emoji = '🛒';
-                        
-                        return {
-                            label: cat,
-                            description: `Comandos de ${cat}`,
-                            value: `cat_${cat}`,
-                            emoji: emoji
-                        };
-                    });
-
-                    const rowSelect = new Discord.MessageActionRow().addComponents(
-                        new Discord.MessageSelectMenu()
-                            .setCustomId('help_select_general')
-                            .setPlaceholder('Escolha uma categoria...')
-                            .addOptions(options)
-                    );
-                    
-                    const rowBack = new Discord.MessageActionRow().addComponents(
-                        new Discord.MessageButton().setCustomId('help_btn_home').setLabel('Voltar').setStyle('SECONDARY')
-                    );
-
-                    const embedGen = new Discord.MessageEmbed()
-                        .setTitle("🤖 Comandos Gerais")
-                        .setColor("BLUE")
-                        .setDescription("Selecione uma categoria abaixo para ver os comandos convencionais do bot.");
-
-                    return i.update({ embeds: [embedGen], components: [rowSelect, rowBack] });
-                }
-
-                // --- ADMIN ---
-                if (i.customId === 'help_btn_admin') {
-                    if (!hasAdminPerm) return i.reply({ content: "Sem permissão.", ephemeral: true });
-
-                    const embedAdmin = new Discord.MessageEmbed()
-                        .setTitle("👑 Painel de Administração")
-                        .setColor("GOLD")
-                        .setDescription("Ferramentas para gestão do servidor e do evento.")
-                        .addFields(
-                            { name: "Evento", value: "`/bancocentral`, `/mercadonegro` (opções de admin), `/policia` (definir chefe).", inline: false },
-                            { name: "Moderação", value: "`/ban`, `/kick`, `/clear`", inline: false },
-                            { name: "Política", value: "`/crise`, `/eleicao`", inline: false }
-                        );
-
-                    const rowBack = new Discord.MessageActionRow().addComponents(
-                        new Discord.MessageButton().setCustomId('help_btn_home').setLabel('Voltar').setStyle('SECONDARY')
-                    );
-
-                    return i.update({ embeds: [embedAdmin], components: [rowBack] });
-                }
-
-                // --- VOLTAR (HOME) ---
-                if (i.customId === 'help_btn_home') {
-                    return i.update({ embeds: [embedHome], components: [rowHome] });
-                }
-
-                // --- SELEÇÃO DE CATEGORIA ---
-                if (i.isSelectMenu() && i.customId === 'help_select_general') {
-                    const catName = i.values[0].replace('cat_', '');
-                    
-                    let arquivos = [];
-                    try {
-                        arquivos = fs.readdirSync(`./ComandosSlash/${catName}/`).filter(file => file.endsWith(".js"));
-                    } catch (e) {
-                        return i.reply({ content: "Categoria vazia ou não encontrada.", ephemeral: true });
+                    if (i.isButton() && i.customId === "help_back_home") {
+                        return i.update({ embeds: [embedHome], components: [homeRow] });
                     }
 
-                    const embedCat = new Discord.MessageEmbed()
-                        .setTitle(`📂 Categoria: ${catName}`)
-                        .setColor("BLUE")
-                        .setFooter({ text: "Use o menu para trocar de categoria ou Voltar para o início." });
-
-                    const campos = arquivos.map(arquivo => {
-                        const cmd = require(`../${catName}/${arquivo}`);
-                        return {
-                            name: `/${cmd.name}`,
-                            value: cmd.description || "Sem descrição",
-                            inline: true
-                        };
-                    });
-
-                    if (campos.length <= 25) {
-                        embedCat.addFields(campos);
-                    } else {
-                        const desc = campos.map(c => `**${c.name}**: ${c.value}`).join('\n');
-                        embedCat.setDescription(desc.substring(0, 4096));
+                    if (i.isButton() && i.customId === "help_home_event") {
+                        const e = new Discord.MessageEmbed()
+                            .setTitle("💣 Evento Submundo — Guia Rápido")
+                            .setColor("DARK_RED")
+                            .setDescription(
+                                [
+                                    "Dois lados: **Mercado Negro** vs **Polícia**.",
+                                    "Você entra jogando: use os hubs abaixo.",
+                                    "",
+                                    "Eventos aleatórios: **Raid**, **Escassez**, **Superávit**, **Leilão**.",
+                                    "Admin pode ajustar chances em `/config_evento`.",
+                                ].join("\n")
+                            );
+                        return i.update({ embeds: [e], components: [hubRow, backRow] });
                     }
-                    
-                    // Manter o menu de seleção e adicionar botão voltar
-                    return i.update({ embeds: [embedCat] }); // Mantém componentes antigos (o select menu e o botão voltar)
+
+                    if (i.isButton() && i.customId === "help_home_cmds") {
+                        const e = new Discord.MessageEmbed()
+                            .setTitle("🤖 Comandos — Cascata")
+                            .setColor("BLUE")
+                            .setDescription("Escolha uma categoria para ver os comandos em formato cascata.");
+                        return i.update({ embeds: [e], components: [generalRow, backRow] });
+                    }
+
+                    if (i.isButton() && i.customId === "help_home_admin") {
+                        if (!hasAdminPerm) return i.reply({ content: "❌ Apenas administração.", ephemeral: true });
+                        const e = new Discord.MessageEmbed()
+                            .setTitle("👑 Admin — Cascata")
+                            .setColor("GOLD")
+                            .setDescription("Escolha uma área para ver comandos em cascata.");
+                        return i.update({ embeds: [e], components: [adminRow, backRow] });
+                    }
+
+                    if (i.isSelectMenu() && i.customId === "help_select_category_general") {
+                        const cat = String(i.values[0] || "").replace(/^cat_/, "");
+                        const text = buildCascadeForCategory(cat);
+                        const e = new Discord.MessageEmbed()
+                            .setTitle(`${categoryEmoji(cat)} ${cat} — Cascata`)
+                            .setColor("BLUE")
+                            .setDescription(text || "Sem comandos.");
+                        return i.update({ embeds: [e], components: [generalRow, backRow] });
+                    }
+
+                    if (i.isSelectMenu() && i.customId === "help_select_category_admin") {
+                        if (!hasAdminPerm) return i.reply({ content: "❌ Apenas administração.", ephemeral: true });
+                        const cat = String(i.values[0] || "").replace(/^acat_/, "");
+                        const text = buildCascadeForCategory(cat);
+                        const e = new Discord.MessageEmbed()
+                            .setTitle(`${categoryEmoji(cat)} ${cat} — Cascata (Staff)`)
+                            .setColor("GOLD")
+                            .setDescription(text || "Sem comandos.");
+                        return i.update({ embeds: [e], components: [adminRow, backRow] });
+                    }
+
+                    if (i.isSelectMenu() && i.customId === "help_select_hub") {
+                        const value = String(i.values[0] || "");
+                        const hub = eventHubs.find((h) => h.value === value);
+                        if (!hub) return i.reply({ content: "❌ HUB inválido.", ephemeral: true });
+                        const cmd = loadCommand(hub.file);
+                        const actions = normalizeHubActions(cmd);
+                        const descLines = [];
+                        for (const a of actions) descLines.push(`• ${padLine(a)}`);
+                        const e = new Discord.MessageEmbed()
+                            .setTitle(`${hub.emoji} /${hub.id} — Ações`)
+                            .setColor("DARK_BUT_NOT_BLACK")
+                            .setDescription(descLines.length ? descLines.join("\n").slice(0, 3900) : "Sem ações cadastradas.");
+                        return i.update({ embeds: [e], components: [hubRow, backRow] });
+                    }
+                } catch (err) {
+                    console.error(err);
+                    i.reply({ content: "Erro ao abrir o menu.", ephemeral: true }).catch(() => {});
                 }
             });
 
-            collector.on('end', () => {
-                const disabledRow = new Discord.MessageActionRow()
-                    .addComponents(
-                        new Discord.MessageButton()
-                            .setCustomId('expired')
-                            .setLabel('Menu Expirado')
-                            .setStyle('SECONDARY')
-                            .setDisabled(true)
-                    );
+            collector.on("end", () => {
+                const disabledRow = new Discord.MessageActionRow().addComponents(
+                    new Discord.MessageButton().setCustomId("expired").setLabel("Menu expirado").setStyle("SECONDARY").setDisabled(true)
+                );
                 interaction.editReply({ components: [disabledRow] }).catch(() => {});
             });
-
         } catch (err) {
             console.error(err);
             interaction.reply({ content: "Erro ao carregar menu de ajuda.", ephemeral: true });

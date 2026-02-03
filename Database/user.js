@@ -24,6 +24,8 @@ const userset = new Schema({
       money: { type: Number, default: 0 },
       restrictions: {
         bannedUntil: { type: Number, default: 0 },
+        blackMarketBannedUntil: { type: Number, default: 0 },
+        casinoBannedUntil: { type: Number, default: 0 },
       },
       transactions: {
         type: [

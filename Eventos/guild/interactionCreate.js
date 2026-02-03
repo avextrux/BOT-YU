@@ -59,6 +59,10 @@ client.on("interactionCreate", async (interaction) => {
       }
 
       if (interaction.customId === 'cfg_modal_channel') {
+          const isAdminMember =
+              interaction.member?.permissions?.has("ADMINISTRATOR") ||
+              interaction.member?.permissions?.has("MANAGE_GUILD");
+          if (!isAdminMember) return interaction.reply({ content: "❌ Apenas administradores.", ephemeral: true });
           const chId = interaction.fields.getTextInputValue('channel_id');
           const g = await client.blackMarketGuilddb.getOrCreate(interaction.guildId);
           if (!g.announce) g.announce = { channelId: null, pingEveryone: false };
@@ -68,33 +72,75 @@ client.on("interactionCreate", async (interaction) => {
       }
 
       if (interaction.customId === 'cfg_modal_probs') {
-          const discount = parseFloat(interaction.fields.getTextInputValue('prob_discount')) / 100;
-          const raid = parseFloat(interaction.fields.getTextInputValue('prob_raid')) / 100;
-          const shortage = parseFloat(interaction.fields.getTextInputValue('prob_shortage')) / 100;
-          const surplus = parseFloat(interaction.fields.getTextInputValue('prob_surplus')) / 100;
+          const isAdminMember =
+              interaction.member?.permissions?.has("ADMINISTRATOR") ||
+              interaction.member?.permissions?.has("MANAGE_GUILD");
+          if (!isAdminMember) return interaction.reply({ content: "❌ Apenas administradores.", ephemeral: true });
+          const clamp01 = (n, fallback) => {
+              const v = Number(n);
+              if (!Number.isFinite(v)) return fallback;
+              return Math.max(0, Math.min(1, v));
+          };
+
+          const discount = clamp01(parseFloat(interaction.fields.getTextInputValue('prob_discount')) / 100, 0.05);
+          const raid = clamp01(parseFloat(interaction.fields.getTextInputValue('prob_raid')) / 100, 0.05);
+          const shortage = clamp01(parseFloat(interaction.fields.getTextInputValue('prob_shortage')) / 100, 0.05);
+          const surplus = clamp01(parseFloat(interaction.fields.getTextInputValue('prob_surplus')) / 100, 0.05);
 
           const g = await client.blackMarketGuilddb.getOrCreate(interaction.guildId);
           if (!g.config) g.config = {};
           g.config.eventProbs = { 
-              discount: isNaN(discount) ? 0.05 : discount, 
-              raid: isNaN(raid) ? 0.05 : raid, 
-              shortage: isNaN(shortage) ? 0.05 : shortage, 
-              surplus: isNaN(surplus) ? 0.05 : surplus 
+              discount, 
+              raid, 
+              shortage, 
+              surplus 
           };
           await g.save();
           return interaction.reply({ content: "✅ Probabilidades atualizadas.", ephemeral: true });
       }
 
       if (interaction.customId === 'cfg_modal_eco') {
+          const isAdminMember =
+              interaction.member?.permissions?.has("ADMINISTRATOR") ||
+              interaction.member?.permissions?.has("MANAGE_GUILD");
+          if (!isAdminMember) return interaction.reply({ content: "❌ Apenas administradores.", ephemeral: true });
           const decay = parseFloat(interaction.fields.getTextInputValue('eco_decay'));
           const patrol = parseFloat(interaction.fields.getTextInputValue('eco_patrol')) / 100;
+          const cooldownMin = parseFloat(interaction.fields.getTextInputValue('eco_cooldown_min'));
 
           const g = await client.blackMarketGuilddb.getOrCreate(interaction.guildId);
           if (!g.config) g.config = {};
           g.config.heatDecayPerHour = isNaN(decay) ? 4 : decay;
           g.config.patrolBaseChance = isNaN(patrol) ? 0.08 : patrol;
+          g.config.eventCooldownMs = isNaN(cooldownMin) ? (g.config.eventCooldownMs || 10 * 60 * 1000) : Math.max(0, Math.floor(cooldownMin * 60 * 1000));
           await g.save();
           return interaction.reply({ content: "✅ Configurações econômicas atualizadas.", ephemeral: true });
+      }
+
+      if (interaction.customId === 'cfg_modal_activity') {
+          const isAdminMember =
+              interaction.member?.permissions?.has("ADMINISTRATOR") ||
+              interaction.member?.permissions?.has("MANAGE_GUILD");
+          if (!isAdminMember) return interaction.reply({ content: "❌ Apenas administradores.", ephemeral: true });
+          const l2 = parseFloat(interaction.fields.getTextInputValue('act_level2'));
+          const l3 = parseFloat(interaction.fields.getTextInputValue('act_level3'));
+          const l4 = parseFloat(interaction.fields.getTextInputValue('act_level4'));
+
+          const clampInt = (n, fallback) => {
+              const v = Math.floor(Number(n));
+              if (!Number.isFinite(v)) return fallback;
+              return Math.max(0, Math.min(100000, v));
+          };
+
+          const g = await client.blackMarketGuilddb.getOrCreate(interaction.guildId);
+          if (!g.config) g.config = {};
+          g.config.activityRequirements = {
+              level2: clampInt(l2, 50),
+              level3: clampInt(l3, 200),
+              level4: clampInt(l4, 500),
+          };
+          await g.save();
+          return interaction.reply({ content: "✅ Desafios de atividade atualizados.", ephemeral: true });
       }
   }
 

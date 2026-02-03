@@ -4,6 +4,11 @@ module.exports = {
     name: "config_evento",
     description: "Hub de Configuração do Evento Submundo (ADM)",
     type: "CHAT_INPUT",
+    hubActions: [
+        "Geral — ativar/desativar, canal e @everyone",
+        "Probabilidades — raid/escassez/superávit/leilão",
+        "Economia & Heat — decay, patrulha base, bônus checkpoint",
+    ],
     run: async (client, interaction) => {
         try {
             if (!interaction.member.permissions.has("ADMINISTRATOR") && !interaction.member.permissions.has("MANAGE_GUILD")) {
@@ -14,6 +19,12 @@ module.exports = {
                 const g = await client.blackMarketGuilddb.getOrCreate(interaction.guildId);
                 if (!g.config) g.config = {};
                 if (!g.config.eventProbs) g.config.eventProbs = { discount: 0.05, raid: 0.05, shortage: 0.05, surplus: 0.05 };
+                if (!g.config.eventCooldownMs) g.config.eventCooldownMs = 10 * 60 * 1000;
+                if (!g.config.eventCooldownUntil) g.config.eventCooldownUntil = 0;
+                if (!g.config.heatDecayPerHour) g.config.heatDecayPerHour = 4;
+                if (!g.config.patrolBaseChance) g.config.patrolBaseChance = 0.08;
+                if (!g.config.checkpointBonus) g.config.checkpointBonus = 0.12;
+                if (!g.config.activityRequirements) g.config.activityRequirements = { level2: 50, level3: 200, level4: 500 };
                 if (!g.announce) g.announce = { channelId: null, pingEveryone: false };
                 return g;
             };
@@ -27,6 +38,7 @@ module.exports = {
                     { label: "Geral", value: "general", description: "Ativar/Desativar, Canal de Anúncios", emoji: "⚙️" },
                     { label: "Probabilidades de Eventos", value: "probs", description: "Ajustar chance de Raid, Promoção, etc.", emoji: "🎲" },
                     { label: "Economia & Heat", value: "economy", description: "Decaimento de Heat, Patrulha Base", emoji: "💰" },
+                    { label: "Desafios", value: "activity", description: "Requisitos de mensagens para itens por nível", emoji: "🏁" },
                 ]);
 
             const row = new Discord.MessageActionRow().addComponents(menu);
@@ -85,7 +97,8 @@ module.exports = {
                     const desc = [
                         `**Heat Decay (por hora):** ${c.heatDecayPerHour}`,
                         `**Patrulha Base:** ${(c.patrolBaseChance * 100).toFixed(1)}%`,
-                        `**Bônus Checkpoint:** ${(c.checkpointBonus * 100).toFixed(1)}%`
+                        `**Bônus Checkpoint:** ${(c.checkpointBonus * 100).toFixed(1)}%`,
+                        `**Cooldown de Eventos:** ${Math.max(0, Math.floor((c.eventCooldownMs || 0) / 60000))} min`
                     ].join("\n");
 
                     const rowEco = new Discord.MessageActionRow().addComponents(
@@ -98,6 +111,26 @@ module.exports = {
                         .setDescription(desc);
                     
                     return i.update({ embeds: [e], components: [row, rowEco] });
+                }
+
+                if (action === "activity") {
+                    const a = g.config.activityRequirements || { level2: 50, level3: 200, level4: 500 };
+                    const desc = [
+                        `**Nível 2+:** ${Math.max(0, Math.floor(a.level2 || 0))} mensagens`,
+                        `**Nível 3+:** ${Math.max(0, Math.floor(a.level3 || 0))} mensagens`,
+                        `**Nível 4+:** ${Math.max(0, Math.floor(a.level4 || 0))} mensagens`,
+                    ].join("\n");
+
+                    const rowAct = new Discord.MessageActionRow().addComponents(
+                        new Discord.MessageButton().setCustomId("cfg_edit_activity").setLabel("Editar Desafios").setStyle("PRIMARY")
+                    );
+
+                    const e = new Discord.MessageEmbed()
+                        .setTitle("🏁 Desafios de Atividade")
+                        .setColor("DARK_AQUA")
+                        .setDescription(desc);
+
+                    return i.update({ embeds: [e], components: [row, rowAct] });
                 }
             });
 
@@ -146,7 +179,20 @@ module.exports = {
                     
                     modal.addComponents(
                         new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("eco_decay").setLabel("Heat Decay / Hora").setValue(c.heatDecayPerHour.toString()).setStyle("SHORT")),
-                        new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("eco_patrol").setLabel("Patrulha Base %").setValue((c.patrolBaseChance*100).toString()).setStyle("SHORT"))
+                        new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("eco_patrol").setLabel("Patrulha Base %").setValue((c.patrolBaseChance*100).toString()).setStyle("SHORT")),
+                        new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("eco_cooldown_min").setLabel("Cooldown de Eventos (min)").setValue(String(Math.max(0, Math.floor((c.eventCooldownMs || 0) / 60000)))).setStyle("SHORT"))
+                    );
+                    await i.showModal(modal);
+                }
+
+                if (i.customId === "cfg_edit_activity") {
+                    const modal = new Discord.Modal().setCustomId("cfg_modal_activity").setTitle("Desafios");
+                    const a = g.config.activityRequirements || { level2: 50, level3: 200, level4: 500 };
+
+                    modal.addComponents(
+                        new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("act_level2").setLabel("Nível 2+ (mensagens)").setValue(String(Math.max(0, Math.floor(a.level2 || 0)))).setStyle("SHORT")),
+                        new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("act_level3").setLabel("Nível 3+ (mensagens)").setValue(String(Math.max(0, Math.floor(a.level3 || 0)))).setStyle("SHORT")),
+                        new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("act_level4").setLabel("Nível 4+ (mensagens)").setValue(String(Math.max(0, Math.floor(a.level4 || 0)))).setStyle("SHORT"))
                     );
                     await i.showModal(modal);
                 }

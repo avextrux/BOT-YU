@@ -117,6 +117,19 @@ module.exports = {
     name: "mercadonegro",
     description: "Hub do Mercado Negro: NPCs, itens, reputação, missões e risco",
     type: "CHAT_INPUT",
+    hubActions: [
+        "Status (reputação, heat e patrulha)",
+        "Vendedores (NPCs) — estoque e preços",
+        "Comprar item — negociar mercadoria ilícita",
+        "Vender item — vender mercadoria ilícita",
+        "Inventário — seus itens ilícitos",
+        "Missões — diárias e semanais",
+        "Resgatar missão — pegar recompensa",
+        "Ranking — lucro do submundo",
+        "Caixa ilegal (cassino) — aposta arriscada",
+        "Configurar anúncios (ADM)",
+        "Ativar/desativar evento (ADM)",
+    ],
     run: async (client, interaction) => {
         try {
             if (!client.blackMarketGuilddb || !client.blackMarketUserdb || !client.userdb || !client.guildEconomydb) {
@@ -182,9 +195,15 @@ module.exports = {
                     await g.save().catch(() => {});
                     await u.save().catch(() => {});
 
-                    const bannedUntil = (await client.userdb.getOrCreate(interaction.user.id)).economia?.restrictions?.bannedUntil || 0;
-                    if (bannedUntil && now < bannedUntil) {
-                        return i.reply({ content: `⛔ Você está banido do sistema econômico até <t:${Math.floor(bannedUntil / 1000)}:R>.`, ephemeral: true });
+                    const mainUser = await client.userdb.getOrCreate(interaction.user.id);
+                    if (!mainUser.economia.restrictions) mainUser.economia.restrictions = { bannedUntil: 0, blackMarketBannedUntil: 0, casinoBannedUntil: 0 };
+                    const bmBan = Number(mainUser.economia.restrictions.blackMarketBannedUntil || 0);
+                    const casinoBan = Number(mainUser.economia.restrictions.casinoBannedUntil || 0);
+                    if (bmBan && now < bmBan && ["comprar_item", "vender_item", "resgatar"].includes(action)) {
+                        return i.reply({ content: `⛔ Você está banido do Mercado Negro até <t:${Math.floor(bmBan / 1000)}:R>.`, ephemeral: true });
+                    }
+                    if (casinoBan && now < casinoBan && action === "caixa") {
+                        return i.reply({ content: `⛔ Você está banido do Cassino até <t:${Math.floor(casinoBan / 1000)}:R>.`, ephemeral: true });
                     }
 
                     if (action === "status") {
@@ -369,12 +388,19 @@ module.exports = {
                         if (!item) return i.reply({ content: "❌ Item inválido. Veja em “Vendedores (NPCs)”.", ephemeral: true });
                         if (repNow.level < item.minLevel) return i.reply({ content: `🔒 Você precisa de reputação: **${itemUnlockName(item.minLevel)}**.`, ephemeral: true });
 
-                        // Checar desafio de mensagens (desafio de engajamento)
                         const mainUser = await client.userdb.getOrCreate(interaction.user.id);
-                        const msgCount = mainUser.economia?.stats?.messagesSent || 0;
-                        if (item.minLevel >= 2 && msgCount < 50) return i.reply({ content: `🔒 Requisito de atividade: Você precisa enviar pelo menos **50 mensagens** no chat para negociar itens deste nível. (Atual: ${msgCount})`, ephemeral: true });
-                        if (item.minLevel >= 3 && msgCount < 200) return i.reply({ content: `🔒 Requisito de atividade: Você precisa enviar pelo menos **200 mensagens** no chat para negociar itens deste nível. (Atual: ${msgCount})`, ephemeral: true });
-                        if (item.minLevel >= 4 && msgCount < 500) return i.reply({ content: `🔒 Requisito de atividade: Você precisa enviar pelo menos **500 mensagens** no chat para negociar itens deste nível. (Atual: ${msgCount})`, ephemeral: true });
+                        const msgCount = Math.max(0, Math.floor(mainUser.economia?.stats?.messagesSent || 0));
+                        const req = g.config?.activityRequirements || {};
+                        const lvl2 = Math.max(0, Math.floor(req.level2 ?? 50));
+                        const lvl3 = Math.max(0, Math.floor(req.level3 ?? 200));
+                        const lvl4 = Math.max(0, Math.floor(req.level4 ?? 500));
+                        const needed = item.minLevel >= 4 ? lvl4 : item.minLevel >= 3 ? lvl3 : item.minLevel >= 2 ? lvl2 : 0;
+                        if (needed > 0 && msgCount < needed) {
+                            return i.reply({
+                                content: `🔒 Requisito de atividade: envie **${needed} mensagens** no chat para negociar itens deste nível. (Atual: ${msgCount})`,
+                                ephemeral: true,
+                            });
+                        }
 
                         const vendor = (g.vendors || []).find((v) => v.vendorId === vendorId);
                         const vendorCatalog = VENDORS.find((v) => v.vendorId === vendorId);
@@ -414,9 +440,9 @@ module.exports = {
                             ensureRep(u);
 
                             const userdb = await client.userdb.getOrCreate(interaction.user.id);
-                            if (!userdb.economia.restrictions) userdb.economia.restrictions = { bannedUntil: 0 };
+                            if (!userdb.economia.restrictions) userdb.economia.restrictions = { bannedUntil: 0, blackMarketBannedUntil: 0, casinoBannedUntil: 0 };
                             const mins = 10 + Math.floor(chance * 20);
-                            userdb.economia.restrictions.bannedUntil = Math.max(userdb.economia.restrictions.bannedUntil || 0, Date.now() + mins * 60 * 1000);
+                            userdb.economia.restrictions.blackMarketBannedUntil = Math.max(userdb.economia.restrictions.blackMarketBannedUntil || 0, Date.now() + mins * 60 * 1000);
                             await userdb.save().catch(() => {});
 
                             await createPoliceCaseIfPossible(client, {
@@ -469,6 +495,20 @@ module.exports = {
                         const item = ITEMS[itemId];
                         if (!item) return i.reply({ content: "❌ Item inválido.", ephemeral: true });
 
+                        const mainUser = await client.userdb.getOrCreate(interaction.user.id);
+                        const msgCount = Math.max(0, Math.floor(mainUser.economia?.stats?.messagesSent || 0));
+                        const req = g.config?.activityRequirements || {};
+                        const lvl2 = Math.max(0, Math.floor(req.level2 ?? 50));
+                        const lvl3 = Math.max(0, Math.floor(req.level3 ?? 200));
+                        const lvl4 = Math.max(0, Math.floor(req.level4 ?? 500));
+                        const needed = item.minLevel >= 4 ? lvl4 : item.minLevel >= 3 ? lvl3 : item.minLevel >= 2 ? lvl2 : 0;
+                        if (needed > 0 && msgCount < needed) {
+                            return i.reply({
+                                content: `🔒 Requisito de atividade: envie **${needed} mensagens** no chat para negociar itens deste nível. (Atual: ${msgCount})`,
+                                ephemeral: true,
+                            });
+                        }
+
                         const ok = removeInventory(u, itemId, qty);
                         if (!ok) return i.reply({ content: "❌ Você não tem essa quantidade no inventário ilícito.", ephemeral: true });
 
@@ -496,9 +536,9 @@ module.exports = {
                             ensureRep(u);
 
                             const userdb = await client.userdb.getOrCreate(interaction.user.id);
-                            if (!userdb.economia.restrictions) userdb.economia.restrictions = { bannedUntil: 0 };
+                            if (!userdb.economia.restrictions) userdb.economia.restrictions = { bannedUntil: 0, blackMarketBannedUntil: 0, casinoBannedUntil: 0 };
                             const mins = 8 + Math.floor(chance * 18);
-                            userdb.economia.restrictions.bannedUntil = Math.max(userdb.economia.restrictions.bannedUntil || 0, Date.now() + mins * 60 * 1000);
+                            userdb.economia.restrictions.blackMarketBannedUntil = Math.max(userdb.economia.restrictions.blackMarketBannedUntil || 0, Date.now() + mins * 60 * 1000);
                             await userdb.save().catch(() => {});
 
                             await createPoliceCaseIfPossible(client, {
@@ -515,7 +555,7 @@ module.exports = {
 
                             await g.save().catch(() => {});
                             await u.save().catch(() => {});
-                            return i.reply({ content: `🚨 Venda interceptada no **${district.name}**. Mercadoria apreendida e **ban econômico** aplicado.`, ephemeral: true });
+                            return i.reply({ content: `🚨 Venda interceptada no **${district.name}**. Mercadoria apreendida e **ban do Mercado Negro** aplicado.`, ephemeral: true });
                         }
 
                         await creditWallet(client.userdb, interaction.user.id, total, "blackmarket_sell", { guildId: interaction.guildId, itemId, qty, district: district.id }).catch(() => {});

@@ -1,29 +1,238 @@
-LISTA DE COMANDOS - BOT YU (ATUALIZADO)
+BOT-YU — LISTA DE COMANDOS
+Gerado em: 03/02/2026, 15:23:25
 
---- EVENTO SUBMUNDO (HUBS INTERATIVOS) ---
-/mercadonegro        -> Hub Principal: NPCs, Comprar/Vender (Drogas/Armas), Missões, Ranking.
-/faccao              -> Hub de Facções: Criar, Gerir Membros, Territórios, Guerras.
-/policia             -> Hub da Polícia: Patrulhar, Investigar, Prender, Ranking.
-/eleicao             -> Hub de Eleições: Votar, Candidatar, Comprar Votos, Placar.
-/bancocentral        -> (Admin/Gerente) Tesouro do servidor, pagamentos infinitos.
-/config_evento       -> (Admin) Configurar probabilidades de Raid, Escassez, Promoção, etc.
+Como organizar no servidor (sugestão):
+- Canal #anuncios-evento: anúncios e atrações
+- Canal #campanha: propaganda, debates, memes
+- Canal #economia: prints de /work /daily /loja /banco
+- Canal #suporte-bot: dúvidas e /help
 
---- GERAL ---
-/help                -> Central de Ajuda (Novo Hub organizado).
-/sobremim            -> Editar perfil.
-/perfil              -> Ver perfil.
-/pay                 -> Transferir dinheiro.
-/atm                 -> Ver saldo.
+Legenda:
+- arg? = opcional
+- arg = obrigatório
 
---- ADMINISTRAÇÃO ---
-/admin embed         -> Criar embed.
-/ban /kick /clear    -> Moderação básica.
-/crise               -> Iniciar crise econômica global.
-/politica set        -> Definir impostos/salários.
+== ADMIN ==
+/config_evento — Hub de Configuração do Evento Submundo (ADM)
+  - HUB (ações):
+    • Geral — ativar/desativar, canal e @everyone
+    • Probabilidades — raid/escassez/superávit/leilão
+    • Economia & Heat — decay, patrulha base, bônus checkpoint
 
---- NOTAS ---
-* Os comandos de evento agora são "Hubs": você digita o comando e navega por botões/menus.
-* O Banco Central agora tem fundos infinitos para pagamentos (Admin).
-* Facções podem vender drogas (Erva, Pó, Cristais) para ganhar influência.
-* Itens de nível alto exigem "Desafios" (ex: enviar X mensagens no chat).
-* Novos eventos aleatórios: Raid Policial, Escassez e Superávit.
+/embed — Crie uma embed personalizada
+
+
+== DIVERSAO ==
+/8ball — Pergunte algo para a bola mágica
+
+/bicho — Jogue no Jogo do Bicho e tente a sorte!
+
+/blackjack — Jogue Blackjack contra o bot (com aposta)
+
+/dados — Role os dados (com ou sem aposta)
+
+/forca — Jogue Forca
+  - /forca iniciar — Inicia uma partida
+  - /forca letra letra:string — Tenta uma letra
+  - /forca palavra palavra:string — Chuta a palavra inteira
+  - /forca desistir — Encerra a partida
+
+/jokenpo — Jogue Pedra, Papel e Tesoura contra o bot
+
+/moeda — Jogue cara ou coroa e aposte seu dinheiro!
+
+/quiz — Quiz rápido com botões
+
+/roleta — Aposte na roleta (Vermelho, Preto ou Verde)
+
+/slots — Jogue no caça-níqueis (Cassino)
+
+/wordle — Jogue Wordle (5 letras)
+  - /wordle iniciar — Inicia uma partida
+  - /wordle tentar palavra:string — Tente uma palavra
+  - /wordle desistir — Encerra sua partida atual
+
+
+== ECONOMIA ==
+/atm — Ver a sua carteira ou a de alguém
+
+/banco — Bancos privados controlados por jogadores
+  - /banco criar id:string nome:string — Cria um banco privado
+  - /banco info id:string — Mostra info de um banco
+  - /banco depositar id:string quantia:string — Deposita no banco privado
+  - /banco retirar id:string quantia:string — Retira do banco privado
+  - /banco emprestimo_pedir id:string valor:number dias:integer — Pede um empréstimo ao banco
+  - /banco emprestimo_pagar id:string valor:number — Paga seu empréstimo (total ou parcial)
+
+/bancocentral — Banco Central do servidor (tesouro e gestão do evento)
+  - HUB (ações):
+    • status — ver tesouro e gestão
+    • configurar_dono — definir dono (admin)
+    • gerente_adicionar — dar escopo (admin/dono)
+    • gerente_remover — remover gerente (admin/dono)
+    • pagar — pagar via tesouro (admin/gerente)
+    • depositar — depositar via carteira
+  - /bancocentral status — Mostra o saldo e a gestão
+  - /bancocentral configurar_dono usuario:user — Define o dono do Banco Central (admin)
+  - /bancocentral gerente_adicionar usuario:user escopo:string — Adiciona um gerente e escopo (admin/dono)
+  - /bancocentral gerente_remover usuario:user — Remove um gerente (admin/dono)
+  - /bancocentral pagar usuario:user valor:integer motivo?:string — Paga um usuário usando o tesouro do servidor
+  - /bancocentral depositar valor:integer motivo?:string — Deposita no tesouro usando sua carteira
+
+/casar — Proponha casamento a alguém especial
+
+/contrato — Contratos formais entre jogadores
+  - /contrato criar usuario:user titulo:string descricao:string escrow:number multa:number prazo_horas:number — Cria um contrato com escrow e multa
+  - /contrato ver id:string — Mostra um contrato
+  - /contrato aceitar id:string — Aceita e ativa um contrato pendente
+  - /contrato cancelar id:string — Cancela um contrato pendente (devolve escrow)
+  - /contrato finalizar id:string — Marca o contrato como concluído (precisa das duas partes)
+  - /contrato arbitragem id:string min_votos?:integer — Abre arbitragem por votação da comunidade
+
+/crise — Eventos globais que afetam o servidor
+  - /crise status — Mostra crise ativa
+  - /crise iniciar tipo:string duracao_horas:number — Inicia uma crise (admin)
+  - /crise encerrar — Encerra crise (admin)
+
+/daily — Resgate seu prêmio diário
+
+/depositar — Deposite seu dinheiro no banco
+
+/divorciar — Termine seu casamento (custará metade dos seus bens, brincadeira)
+
+/eleicao — Hub de Eleições e Política (Votar, Candidatar, Comprar Voto)
+  - HUB (ações):
+    • Status & Placar — ver quem está ganhando
+    • Candidatar-se — entrar na disputa
+    • Votar — 1 voto gratuito
+    • Comprar votos — via modal (dinheiro do bot)
+    • Retirar candidatura — desistir
+    • Regras — guia rápido
+    • Admin: Gerenciar — iniciar/encerrar e toggle voteshop
+
+/empregos — Escolha um novo emprego
+
+/extrato — Mostra suas últimas movimentações
+
+/faccao — Hub de facções: gangues do submundo e territórios
+  - HUB (ações):
+    • Minha facção — status e membros
+    • Listar facções — top facções do servidor
+    • Territórios — controle territorial por distrito
+    • Criar facção — criar sua gangue
+    • Entrar em facção — entrar usando ID
+    • Sair da facção — sair da sua gangue
+    • Comprar influência — dinheiro -> influência
+    • Transferir liderança — líder passa liderança
+    • Expulsar membro — líder remove alguém
+    • Deletar facção — líder/admin apaga facção
+
+/investigar — Polícia econômica: coletar pistas contra um suspeito
+
+/mercado — Negócios do servidor: crie anúncios e venda/compre coisas
+  - /mercado listar — Lista anúncios ativos
+  - /mercado anunciar titulo:string preco:integer quantidade:integer descricao?:string — Cria um anúncio de venda
+  - /mercado comprar id:string quantidade:integer — Compra de um anúncio
+  - /mercado cancelar id:string — Cancela um anúncio (vendedor/admin)
+  - /mercado minhas — Lista seus anúncios
+
+/mercadonegro — Hub do Mercado Negro: NPCs, itens, reputação, missões e risco
+  - HUB (ações):
+    • Status (reputação, heat e patrulha)
+    • Vendedores (NPCs) — estoque e preços
+    • Comprar item — negociar mercadoria ilícita
+    • Vender item — vender mercadoria ilícita
+    • Inventário — seus itens ilícitos
+    • Missões — diárias e semanais
+    • Resgatar missão — pegar recompensa
+    • Ranking — lucro do submundo
+    • Caixa ilegal (cassino) — aposta arriscada
+    • Configurar anúncios (ADM)
+    • Ativar/desativar evento (ADM)
+
+/pay — Transfira dinheiro para outro usuário
+
+/perfil — ver a sua atm ou a de alguém
+
+/policia — Hub da Polícia: patrulhas, checkpoints, casos, ranking e missões
+  - HUB (ações):
+    • Status — chefe, oficiais e seu status
+    • Candidatar — entrar para a polícia
+    • Pedidos (chefe) — ver pendentes
+    • Aceitar pedido (chefe) — aprovar candidato
+    • Recusar pedido (chefe) — recusar candidato
+    • Definir chefe (ADM) — admin define chefe
+    • Patrulhar — buscar pistas e casos
+    • Checkpoint — aumenta interceptações
+    • Casos — listar abertos
+    • Ver caso — detalhes
+    • Investigar caso — avançar progresso
+    • Capturar caso — fechar e apreender
+    • Missões — missões policiais
+    • Resgatar missão — pegar recompensa
+    • Ranking — melhores policiais
+
+/politica — Política econômica do servidor
+  - /politica status — Mostra a política atual
+  - /politica set imposto?:number salario_minimo?:number subsidio_daily?:number — Ajusta impostos e bônus (presidente/admin)
+
+/rank — rank dos maiores dinheiros
+
+/retirar — Retire seu dinheiro do banco
+
+/sobremim — Altere a descrição do seu perfil
+
+/work — Trabalhe e ganhe dinheiro
+
+
+== INTERACAO ==
+/hug — Dê um abraço carinhoso em alguém
+
+/kiss — Dê um beijo em alguém
+
+/ship — Descubra a porcentagem de amor entre duas pessoas
+
+/slap — Dê um tapa em alguém (com carinho ou não)
+
+
+== LOJA ==
+/comprar — Compre um item da loja
+
+/loja-admin — Gerencie os itens da loja (Apenas Moderadores)
+  - /loja-admin criar id:string nome:string preco:number descricao?:string cargo?:role — Adicionar um novo item à loja
+  - /loja-admin remover id:string — Remover um item da loja
+  - /loja-admin editar id:string novo_preco:number — Editar o preço de um item
+
+/loja — Veja os itens disponíveis para compra
+
+
+== MODERACAO ==
+/ban — Banir um membro do servidor.
+
+/clear — Limpa mensagens do chat.
+
+/kick — Expulsa um membro do servidor.
+
+
+== OUTROS ==
+/eventohelp — Ajuda administrativa do evento Submundo (somente ADM)
+
+/gif — Busca um GIF no GIPHY
+
+/help — Hub de ajuda e guias do servidor
+
+/ping — Verifica a latência do bot e da API.
+
+/sorteio — Escolhe aleatoriamente uma opção
+
+
+== UTILIDADE ==
+/avatar — Mostra o avatar de um usuário.
+
+/call — Inicie uma chamada privada temporária com alguém
+
+/lembrete — Crie um lembrete (em minutos)
+
+/serverinfo — Mostra informações sobre o servidor.
+
+/userinfo — Mostra informações sobre um usuário.
+

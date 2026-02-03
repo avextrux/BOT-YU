@@ -1,5 +1,3 @@
-const { formatMoney, debitWalletIfEnough } = require("./economy");
-
 function getVoteCount(votes, userId) {
     if (!votes) return 0;
     if (typeof votes.get === "function") return votes.get(userId) || 0;
@@ -59,12 +57,22 @@ function ensureElectionDefaults(eco) {
             voteShop: { enabled: true, basePrice: 500, increment: 50, sold: 0, lastEventAt: 0, boostUntil: 0, boostMultiplier: 1.0 },
         };
     }
+    if (eco.election.active === undefined) eco.election.active = false;
+    if (eco.election.endsAt === undefined) eco.election.endsAt = 0;
+    if (!Array.isArray(eco.election.candidates)) eco.election.candidates = [];
     if (!eco.election.votes) eco.election.votes = new Map();
     if (!eco.election.paidVotes) eco.election.paidVotes = new Map();
     if (!eco.election.voters) eco.election.voters = [];
     if (eco.election.announceChannelId === undefined) eco.election.announceChannelId = null;
     if (eco.election.pingEveryone === undefined) eco.election.pingEveryone = false;
     if (!eco.election.voteShop) eco.election.voteShop = { enabled: true, basePrice: 500, increment: 50, sold: 0, lastEventAt: 0, boostUntil: 0, boostMultiplier: 1.0 };
+    if (eco.election.voteShop.enabled === undefined) eco.election.voteShop.enabled = true;
+    if (eco.election.voteShop.basePrice === undefined) eco.election.voteShop.basePrice = 500;
+    if (eco.election.voteShop.increment === undefined) eco.election.voteShop.increment = 50;
+    if (eco.election.voteShop.sold === undefined) eco.election.voteShop.sold = 0;
+    if (eco.election.voteShop.lastEventAt === undefined) eco.election.voteShop.lastEventAt = 0;
+    if (eco.election.voteShop.boostUntil === undefined) eco.election.voteShop.boostUntil = 0;
+    if (eco.election.voteShop.boostMultiplier === undefined) eco.election.voteShop.boostMultiplier = 1.0;
 }
 
 module.exports = {

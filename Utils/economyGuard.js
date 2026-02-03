@@ -6,7 +6,7 @@ function deny(text) {
 
 async function ensureEconomyAllowed(client, interaction, userId) {
     const userdb = await client.userdb.getOrCreate(userId);
-    if (!userdb.economia.restrictions) userdb.economia.restrictions = { bannedUntil: 0 };
+    if (!userdb.economia.restrictions) userdb.economia.restrictions = { bannedUntil: 0, blackMarketBannedUntil: 0, casinoBannedUntil: 0 };
 
     const bannedUntil = userdb.economia.restrictions.bannedUntil || 0;
     if (bannedUntil && Date.now() < bannedUntil) {

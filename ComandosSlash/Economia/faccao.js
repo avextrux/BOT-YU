@@ -62,6 +62,18 @@ module.exports = {
     name: "faccao",
     description: "Hub de facções: gangues do submundo e territórios",
     type: "CHAT_INPUT",
+    hubActions: [
+        "Minha facção — status e membros",
+        "Listar facções — top facções do servidor",
+        "Territórios — controle territorial por distrito",
+        "Criar facção — criar sua gangue",
+        "Entrar em facção — entrar usando ID",
+        "Sair da facção — sair da sua gangue",
+        "Comprar influência — dinheiro -> influência",
+        "Transferir liderança — líder passa liderança",
+        "Expulsar membro — líder remove alguém",
+        "Deletar facção — líder/admin apaga facção",
+    ],
     run: async (client, interaction) => {
         try {
             if (!client.factiondb || !client.blackMarketUserdb || !client.territorydb || !client.userdb) {
@@ -358,4 +370,3 @@ module.exports = {
         }
     },
 };
-

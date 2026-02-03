@@ -60,6 +60,13 @@ function optionSignature(opts) {
     return parts.length ? ` ${parts.join(" ")}` : "";
 }
 
+function normalizeHubActions(cmd) {
+    if (!cmd) return [];
+    if (Array.isArray(cmd.hubActions)) return cmd.hubActions.filter(Boolean).map(String);
+    if (cmd.hub && Array.isArray(cmd.hub.actions)) return cmd.hub.actions.filter(Boolean).map(String);
+    return [];
+}
+
 function loadCommand(filePath) {
     try {
         delete require.cache[require.resolve(filePath)];
@@ -105,6 +112,15 @@ function main() {
             const base = `/${cmd.name}`;
             const desc = padLine(cmd.description || "Sem descrição");
             lines.push(`${base} — ${desc}`);
+
+            const hubActions = normalizeHubActions(cmd);
+            if (hubActions.length) {
+                lines.push(`  - HUB (ações):`);
+                for (const a of hubActions.slice(0, 30)) {
+                    lines.push(`    • ${padLine(a)}`);
+                }
+                if (hubActions.length > 30) lines.push(`    • ... (+${hubActions.length - 30})`);
+            }
 
             const subs = flattenOptions(cmd.options);
             if (subs.length) {
