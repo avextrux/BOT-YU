@@ -471,25 +471,54 @@ module.exports = {
                         const { user } = await getMyFaction(client, interaction.guildId, interaction.user.id);
                         const myFactionId = user.faction?.factionId || null;
                         if (!myFactionId) return i.reply({ content: "❌ Você não está em facção.", ephemeral: true });
-                        const f = await client.factiondb.findOne({ guildID: interaction.guildId, factionId: myFactionId });
-                        if (!f) return i.reply({ content: "❌ Facção não encontrada.", ephemeral: true });
-                        if (f.leaderId !== interaction.user.id) return i.reply({ content: "❌ Apenas o líder pode transferir liderança.", ephemeral: true });
 
                         const raw = await promptOneLine(interaction, { prompt: "Digite o @ do novo líder (ou ID).", timeMs: 60000 });
                         if (!raw) return i.reply({ content: "⏳ Tempo esgotado.", ephemeral: true });
                         const targetId = parseUserId(raw);
                         if (!targetId) return i.reply({ content: "❌ Usuário inválido.", ephemeral: true });
                         if (targetId === interaction.user.id) return i.reply({ content: "❌ Você já é o líder.", ephemeral: true });
-                        if (!(f.members || []).some((m) => m.userId === targetId)) return i.reply({ content: "❌ Essa pessoa não é membro da facção.", ephemeral: true });
 
-                        f.leaderId = targetId;
-                        f.members = (f.members || []).map((m) => {
-                            const asObj = typeof m.toObject === "function" ? m.toObject() : m;
-                            if (m.userId === targetId) return { ...asObj, role: "leader" };
-                            if (m.userId === interaction.user.id) return { ...asObj, role: "member" };
-                            return asObj;
-                        });
-                        await f.save().catch(() => {});
+                        const updated = await client.factiondb.findOneAndUpdate(
+                            { guildID: interaction.guildId, factionId: myFactionId, leaderId: interaction.user.id, "members.userId": targetId },
+                            [
+                                {
+                                    $set: {
+                                        leaderId: targetId,
+                                        members: {
+                                            $map: {
+                                                input: "$members",
+                                                as: "m",
+                                                in: {
+                                                    $mergeObjects: [
+                                                        "$$m",
+                                                        {
+                                                            role: {
+                                                                $cond: [
+                                                                    { $eq: ["$$m.userId", targetId] },
+                                                                    "leader",
+                                                                    {
+                                                                        $cond: [{ $eq: ["$$m.userId", interaction.user.id] }, "member", "$$m.role"],
+                                                                    },
+                                                                ],
+                                                            },
+                                                        },
+                                                    ],
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
+                            ],
+                            { new: true }
+                        );
+
+                        if (!updated) {
+                            const f = await client.factiondb.findOne({ guildID: interaction.guildId, factionId: myFactionId }).lean();
+                            if (!f) return i.reply({ content: "❌ Facção não encontrada.", ephemeral: true });
+                            if (f.leaderId !== interaction.user.id) return i.reply({ content: "❌ Apenas o líder pode transferir liderança.", ephemeral: true });
+                            return i.reply({ content: "❌ Essa pessoa não é membro da facção.", ephemeral: true });
+                        }
+
                         return i.reply({ content: `✅ Liderança transferida para <@${targetId}>.`, ephemeral: true });
                     }
 
