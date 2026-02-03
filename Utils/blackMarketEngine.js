@@ -77,7 +77,21 @@ function computeDynamicPrice({ guildDoc, userDoc, itemId, districtId, side }) {
     const discMult = Number(cfg.discountMultiplier || 1.0);
     const discount = discUntil > now && Number.isFinite(discMult) && discMult > 0 ? discMult : 1.0;
 
-    const raw = item.basePrice * (1 + demandFactor) * (1 + heatFactor) * districtBias * territoryBonus * discount;
+    // Check Active Events
+    const events = cfg.activeEvents || {};
+    let eventMult = 1.0;
+
+    if ((events.raidUntil || 0) > now) {
+        eventMult *= 1.25; // Preços sobem 25% durante raids (risco)
+    }
+    if ((events.shortage?.until || 0) > now && events.shortage?.itemId === itemId) {
+        eventMult *= 2.0; // Escassez dobra o preço
+    }
+    if ((events.surplus?.until || 0) > now && events.surplus?.itemId === itemId) {
+        eventMult *= 0.6; // Superávit reduz preço em 40%
+    }
+
+    const raw = item.basePrice * (1 + demandFactor) * (1 + heatFactor) * districtBias * territoryBonus * discount * eventMult;
     const buyPrice = Math.max(1, Math.floor(raw));
     const sellPrice = Math.max(1, Math.floor(raw * item.buyback));
 
@@ -105,7 +119,10 @@ function computeInterceptChance({ guildDoc, userDoc, item, districtId, totalValu
     const checkpointActive = cps.some((c) => c.districtId === districtId && (c.activeUntil || 0) > now);
     const checkpointBonus = checkpointActive ? clamp(Number(cfg.checkpointBonus || 0.12), 0, 0.5) : 0;
 
-    const chance = clamp(base + patrolBase * patrol + heat + volume + checkpointBonus, 0.02, 0.95);
+    const events = cfg.activeEvents || {};
+    const raidBonus = (events.raidUntil || 0) > now ? 0.25 : 0;
+
+    const chance = clamp(base + patrolBase * patrol + heat + volume + checkpointBonus + raidBonus, 0.02, 0.95);
     return { chance, checkpointActive };
 }
 

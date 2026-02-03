@@ -13,6 +13,7 @@ const userset = new Schema({
           dailyLastAt: { type: Number, default: 0 },
           workStreak: { type: Number, default: 0 },
           workLastAt: { type: Number, default: 0 },
+          messagesSent: { type: Number, default: 0 },
       },
       marry:{
         casado: { type: Boolean, default: false },

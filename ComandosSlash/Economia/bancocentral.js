@@ -197,9 +197,16 @@ module.exports = {
                 const motivo = interaction.options.getString("motivo");
 
                 if ((eco.policy.treasury || 0) < amount) {
-                    return interaction.reply({ content: `❌ Tesouro insuficiente. Saldo: ${formatMoney(eco.policy.treasury || 0)}.`, ephemeral: true });
+                    // Modo infinito: Apenas avisa que está "imprimindo" dinheiro se o tesouro for baixo, mas permite.
+                    // return interaction.reply({ content: `❌ Tesouro insuficiente. Saldo: ${formatMoney(eco.policy.treasury || 0)}.`, ephemeral: true });
                 }
 
+                // Opcional: manter o tesouro atualizado mesmo que vá para negativo, ou apenas não descontar.
+                // O usuário pediu "dinheiro infinito", então vamos apenas NÃO descontar se for Admin/Dono, 
+                // mas se for um "Gerente" com escopo limitado, talvez devesse descontar?
+                // O pedido foi "banco central ter dinheiro infinito". Então vamos assumir que ele gera inflação.
+                
+                // Se quiser manter contabilidade:
                 eco.policy.treasury = Math.floor((eco.policy.treasury || 0) - amount);
                 await eco.save();
 

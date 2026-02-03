@@ -1,5 +1,5 @@
 const client = require("../../index");
-const { VENDORS } = require("../../Utils/blackMarketCatalog");
+const { VENDORS, ITEMS } = require("../../Utils/blackMarketCatalog");
 const { ensureVendorState, decayHeat, updateDemandEma } = require("../../Utils/blackMarketEngine");
 const Discord = require("discord.js");
 
@@ -68,17 +68,89 @@ async function tick() {
             }
 
             const cfg = g.config || {};
-            if ((cfg.discountUntil || 0) <= now) {
-                const patrol = Math.max(0.05, Math.min(0.95, Number(g.patrol?.intensity || 0.35)));
-                const chance = 0.08 + (1 - patrol) * 0.06;
-                if (Math.random() < chance) {
+            if (!cfg.eventProbs) cfg.eventProbs = { discount: 0.05, raid: 0.05, shortage: 0.05, surplus: 0.05 };
+            if (!cfg.activeEvents) cfg.activeEvents = { raidUntil: 0, shortage: { until: 0 }, surplus: { until: 0 } };
+
+            const activeEvents = cfg.activeEvents;
+            const probs = cfg.eventProbs;
+
+            const isEventActive = 
+                (cfg.discountUntil || 0) > now || 
+                (activeEvents.raidUntil || 0) > now ||
+                (activeEvents.shortage?.until || 0) > now ||
+                (activeEvents.surplus?.until || 0) > now;
+
+            if (!isEventActive) {
+                const roll = Math.random();
+                let acc = 0;
+                const channelId = g.announce?.channelId;
+                const content = g.announce?.pingEveryone ? "@everyone" : undefined;
+
+                // Raid
+                acc += (probs.raid || 0.05);
+                if (roll < acc) {
+                    const duration = 20 * 60 * 1000;
+                    activeEvents.raidUntil = now + duration;
+                    g.patrol.intensity = Math.min(1.0, (g.patrol.intensity || 0.35) + 0.4);
+                    
+                    const embed = new Discord.MessageEmbed()
+                        .setTitle("🚨 RAID POLICIAL EM ANDAMENTO")
+                        .setColor("DARK_RED")
+                        .setDescription(`A polícia iniciou uma operação massiva!\n\n👮 **Patrulha:** Aumentada drasticamente.\n📈 **Preços:** +25% (Risco).\n⚠️ **Interceptação:** Muito alta.\n\nDuração: 20 minutos.`);
+                    await trySendToChannel(channelId, { content, embeds: [embed] });
+                    g.config.activeEvents = activeEvents;
+                    await g.save();
+                    continue;
+                }
+
+                // Shortage
+                acc += (probs.shortage || 0.05);
+                if (roll < acc) {
+                    const keys = Object.keys(ITEMS);
+                    const itemKey = keys[Math.floor(Math.random() * keys.length)];
+                    const item = ITEMS[itemKey];
+                    const duration = 30 * 60 * 1000;
+                    
+                    activeEvents.shortage = { until: now + duration, itemId: itemKey };
+                    
+                    const embed = new Discord.MessageEmbed()
+                        .setTitle("📉 ESCASSEZ DE MERCADO")
+                        .setColor("ORANGE")
+                        .setDescription(`Há uma falta de **${item.name}** no mercado.\n\n💰 **Preço:** x2.0 (Dobro).\n\nDuração: 30 minutos.`);
+                    await trySendToChannel(channelId, { content, embeds: [embed] });
+                    g.config.activeEvents = activeEvents;
+                    await g.save();
+                    continue;
+                }
+
+                // Surplus
+                acc += (probs.surplus || 0.05);
+                if (roll < acc) {
+                    const keys = Object.keys(ITEMS);
+                    const itemKey = keys[Math.floor(Math.random() * keys.length)];
+                    const item = ITEMS[itemKey];
+                    const duration = 30 * 60 * 1000;
+                    
+                    activeEvents.surplus = { until: now + duration, itemId: itemKey };
+                    
+                    const embed = new Discord.MessageEmbed()
+                        .setTitle("📦 SUPERÁVIT DE ESTOQUE")
+                        .setColor("GREEN")
+                        .setDescription(`Chegou um carregamento extra de **${item.name}**.\n\n📉 **Preço:** -40% (Desconto).\n\nDuração: 30 minutos.`);
+                    await trySendToChannel(channelId, { content, embeds: [embed] });
+                    g.config.activeEvents = activeEvents;
+                    await g.save();
+                    continue;
+                }
+
+                // Discount
+                acc += (probs.discount || 0.05);
+                if (roll < acc) {
                     const minutes = 15;
                     cfg.discountUntil = now + minutes * 60 * 1000;
                     cfg.discountMultiplier = [0.75, 0.8, 0.85][Math.floor(Math.random() * 3)];
                     g.config = cfg;
 
-                    const channelId = g.announce?.channelId;
-                    const content = g.announce?.pingEveryone ? "@everyone" : undefined;
                     const embed = new Discord.MessageEmbed()
                         .setTitle("🕶️ Evento Relâmpago: Leilão Clandestino")
                         .setColor("DARK_GOLD")
@@ -91,6 +163,8 @@ async function tick() {
                             ].join("\n")
                         );
                     await trySendToChannel(channelId, { content, embeds: [embed] });
+                    await g.save();
+                    continue;
                 }
             }
 
@@ -100,6 +174,7 @@ async function tick() {
         console.error(err);
     }
 }
+
 
 client.on("ready", () => {
     setInterval(() => {

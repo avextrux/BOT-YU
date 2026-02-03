@@ -27,6 +27,8 @@ const FactionSchema = new Schema(
 
         territories: { type: [String], default: [] },
 
+        inventory: { type: Map, of: Number, default: {} },
+
         stats: {
             warsWon: { type: Number, default: 0, index: true },
             warsLost: { type: Number, default: 0, index: true },

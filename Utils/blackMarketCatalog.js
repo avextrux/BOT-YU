@@ -15,14 +15,17 @@ const REP_LEVELS = [
 ];
 
 const ITEMS = {
-    CIGS: { id: "CIGS", name: "Cigarros Contrabandeados", basePrice: 120, minLevel: 0, risk: 0.10, buyback: 0.75 },
-    DOCS: { id: "DOCS", name: "Documentos Falsos", basePrice: 450, minLevel: 1, risk: 0.18, buyback: 0.70 },
+    CIGS: { id: "CIGS", name: "Cigarros", basePrice: 120, minLevel: 0, risk: 0.10, buyback: 0.75 },
+    WEED: { id: "WEED", name: "Erva", basePrice: 250, minLevel: 0, risk: 0.15, buyback: 0.72 },
+    DOCS: { id: "DOCS", name: "Docs Falsos", basePrice: 450, minLevel: 1, risk: 0.18, buyback: 0.70 },
     CHIPS: { id: "CHIPS", name: "Chip Clonado", basePrice: 680, minLevel: 1, risk: 0.20, buyback: 0.68 },
-    MEDS: { id: "MEDS", name: "Medicamentos Restritos", basePrice: 900, minLevel: 2, risk: 0.26, buyback: 0.65 },
+    MEDS: { id: "MEDS", name: "Remédios", basePrice: 900, minLevel: 2, risk: 0.26, buyback: 0.65 },
+    COKE: { id: "COKE", name: "Pó Branco", basePrice: 1500, minLevel: 2, risk: 0.35, buyback: 0.60 },
     ART: { id: "ART", name: "Arte Roubada", basePrice: 1400, minLevel: 2, risk: 0.30, buyback: 0.62 },
+    METH: { id: "METH", name: "Cristais", basePrice: 2800, minLevel: 3, risk: 0.40, buyback: 0.55 },
     ARMS: { id: "ARMS", name: "Peças de Arma", basePrice: 2200, minLevel: 3, risk: 0.38, buyback: 0.58 },
-    DATA: { id: "DATA", name: "Dossiê de Dados", basePrice: 3100, minLevel: 3, risk: 0.42, buyback: 0.56 },
-    RELIC: { id: "RELIC", name: "Relíquia Ilegal", basePrice: 5200, minLevel: 4, risk: 0.55, buyback: 0.52 },
+    DATA: { id: "DATA", name: "Dossiê", basePrice: 3100, minLevel: 3, risk: 0.42, buyback: 0.56 },
+    RELIC: { id: "RELIC", name: "Relíquia", basePrice: 5200, minLevel: 4, risk: 0.55, buyback: 0.52 },
 };
 
 const VENDORS = [
@@ -32,6 +35,7 @@ const VENDORS = [
         restockEveryMs: 45 * 60 * 1000,
         pool: [
             { itemId: "CIGS", max: 30 },
+            { itemId: "WEED", max: 20 },
             { itemId: "DOCS", max: 10 },
             { itemId: "CHIPS", max: 8 },
         ],
@@ -43,6 +47,7 @@ const VENDORS = [
         pool: [
             { itemId: "CIGS", max: 40 },
             { itemId: "MEDS", max: 10 },
+            { itemId: "COKE", max: 10 },
             { itemId: "ART", max: 6 },
         ],
     },
@@ -53,6 +58,7 @@ const VENDORS = [
         pool: [
             { itemId: "CHIPS", max: 12 },
             { itemId: "ARMS", max: 6 },
+            { itemId: "METH", max: 8 },
             { itemId: "DATA", max: 4 },
         ],
     },

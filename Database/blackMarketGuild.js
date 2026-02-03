@@ -41,6 +41,23 @@ const BlackMarketGuildSchema = new Schema(
             weeklyResetAt: { type: Number, default: 0, index: true },
             discountUntil: { type: Number, default: 0 },
             discountMultiplier: { type: Number, default: 1.0 },
+            eventProbs: {
+                discount: { type: Number, default: 0.05 },
+                raid: { type: Number, default: 0.05 },
+                shortage: { type: Number, default: 0.05 },
+                surplus: { type: Number, default: 0.05 },
+            },
+            activeEvents: {
+                raidUntil: { type: Number, default: 0 },
+                shortage: {
+                    until: { type: Number, default: 0 },
+                    itemId: { type: String, default: null },
+                },
+                surplus: {
+                    until: { type: Number, default: 0 },
+                    itemId: { type: String, default: null },
+                },
+            },
         },
 
         patrol: {

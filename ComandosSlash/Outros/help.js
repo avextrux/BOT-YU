@@ -3,7 +3,7 @@ const fs = require("fs");
 
 module.exports = {
     name: "help",
-    description: "Ver a lista de comandos do bot de forma dinâmica",
+    description: "Hub de ajuda e guias do servidor",
     type: "CHAT_INPUT",
     run: async (client, interaction) => {
         try {
@@ -11,266 +11,209 @@ module.exports = {
                 interaction.member?.permissions?.has("ADMINISTRATOR") ||
                 interaction.member?.permissions?.has("MANAGE_GUILD");
 
-            const embed = new Discord.MessageEmbed()
-                .setTitle('🤖 Central de Ajuda')
-                .setColor("BLUE")
-                .setDescription('Selecione uma categoria abaixo para ver os comandos disponíveis.')
+            // --- PÁGINA INICIAL (HOME) ---
+            const embedHome = new Discord.MessageEmbed()
+                .setTitle('📚 Central de Ajuda & Guias')
+                .setColor("BLURPLE")
+                .setDescription(
+                    `Seja bem-vindo à central de informações do servidor.\n\n` +
+                    `**O que você procura hoje?**\n` +
+                    `💣 **Evento Submundo**: Tudo sobre o RP de Facções vs Polícia.\n` +
+                    `🤖 **Comandos Gerais**: Diversão, economia básica e utilidades.\n` +
+                    `👑 **Administração**: Painel para staff.`
+                )
                 .setThumbnail(client.user.displayAvatarURL())
                 .setFooter({ text: `Solicitado por ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() });
 
-            // Ler categorias dinamicamente
-            const categorias = fs.readdirSync("./ComandosSlash/");
-            const ordemPreferida = [
-                "Economia",
-                "Diversao",
-                "Interacao",
-                "Utilidade",
-                "Loja",
-                "Moderacao",
-                "Outros",
-                "Admin",
-            ];
-            categorias.sort((a, b) => {
-                const ia = ordemPreferida.findIndex((x) => x.toLowerCase() === a.toLowerCase());
-                const ib = ordemPreferida.findIndex((x) => x.toLowerCase() === b.toLowerCase());
-                const ra = ia === -1 ? 999 : ia;
-                const rb = ib === -1 ? 999 : ib;
-                if (ra !== rb) return ra - rb;
-                return a.localeCompare(b, "pt-BR");
-            });
-            const options = [];
+            const rowHome = new Discord.MessageActionRow().addComponents(
+                new Discord.MessageButton()
+                    .setCustomId('help_btn_event')
+                    .setLabel('Evento Submundo')
+                    .setEmoji('💣')
+                    .setStyle('DANGER'),
+                new Discord.MessageButton()
+                    .setCustomId('help_btn_general')
+                    .setLabel('Comandos Gerais')
+                    .setEmoji('🤖')
+                    .setStyle('PRIMARY'),
+                new Discord.MessageButton()
+                    .setCustomId('help_btn_admin')
+                    .setLabel('Admin')
+                    .setEmoji('👑')
+                    .setStyle('SECONDARY')
+                    .setDisabled(!hasAdminPerm)
+            );
 
-            categorias.forEach(categoria => {
-                let emoji = '📁';
-                if (categoria.toLowerCase() === 'economia') emoji = '🤑';
-                if (categoria.toLowerCase() === 'outros') emoji = '🌐';
-                if (categoria.toLowerCase() === 'utilidade') emoji = '🛠️';
-                if (categoria.toLowerCase() === 'moderacao') emoji = '🛡️';
-                if (categoria.toLowerCase() === 'diversao') emoji = '🎲';
-                if (categoria.toLowerCase() === 'interacao') emoji = '🤝';
-                if (categoria.toLowerCase() === 'loja') emoji = '🛒';
-                if (categoria.toLowerCase() === 'admin') emoji = '👑';
-
-                options.push({
-                    label: categoria,
-                    description: `Comandos da categoria ${categoria}`,
-                    emoji: emoji,
-                    value: categoria
-                });
+            const msg = await interaction.reply({ 
+                embeds: [embedHome], 
+                components: [rowHome], 
+                fetchReply: true 
             });
 
-            options.unshift({
-                label: "Evento: Submundo (Mercado Negro x Polícia)",
-                description: "Lore, regras e comandos principais do evento",
-                emoji: "💣",
-                value: "__EVENT_SUBWORLD__"
-            });
-
-            if (hasAdminPerm) {
-                options.push({
-                    label: "Evento (ADM)",
-                    description: "Comandos do evento (apenas administração)",
-                    emoji: "🎪",
-                    value: "__EVENT_ADMIN__"
-                });
-                const hasAdminCategory = options.some((o) => String(o.value || "").toLowerCase() === "admin");
-                if (!hasAdminCategory) {
-                    options.push({
-                        label: "ADM",
-                        description: "Comandos administrativos (eleição/política/crises)",
-                        emoji: "👑",
-                        value: "__ADM__"
-                    });
-                }
-            }
-
-            const seen = new Set();
-            const deduped = [];
-            for (const opt of options) {
-                const key = String(opt.value);
-                if (seen.has(key)) continue;
-                seen.add(key);
-                deduped.push(opt);
-            }
-
-            const row = new Discord.MessageActionRow()
-                .addComponents(
-                    new Discord.MessageSelectMenu()
-                        .setCustomId('menu_help')
-                        .setPlaceholder('Selecione uma categoria...')
-                        .addOptions(deduped)
-                );
-
-            const msg = await interaction.reply({ embeds: [embed], components: [row], fetchReply: true });
-
-            const collector = msg.createMessageComponentCollector({ componentType: 'SELECT_MENU', idle: 60000 });
+            const collector = msg.createMessageComponentCollector({ idle: 120000 });
 
             collector.on('collect', async i => {
                 if (i.user.id !== interaction.user.id) {
-                    return i.reply({ content: `Apenas ${interaction.user} pode usar este menu.`, ephemeral: true });
+                    return i.reply({ content: `Use /help para abrir seu próprio menu.`, ephemeral: true });
                 }
 
-                const categoriaSelecionada = i.values[0];
-
-                if (categoriaSelecionada === "__EVENT_SUBWORLD__") {
-                    const eventEmbed = new Discord.MessageEmbed()
-                        .setTitle("💣 Evento: Submundo — Mercado Negro x Polícia")
-                        .setColor("DARK_BUT_NOT_BLACK")
+                // --- EVENTO SUBMUNDO ---
+                if (i.customId === 'help_btn_event') {
+                    const embedEvent = new Discord.MessageEmbed()
+                        .setTitle("💣 Guia do Evento: Submundo")
+                        .setColor("DARK_RED")
                         .setDescription(
-                            [
-                                "O submundo virou arena. **NPCs** vendem mercadoria ilícita com preço dinâmico e a **Polícia Econômica** caça pistas, monta checkpoints e fecha casos.",
-                                "",
-                                "✅ Liberdade total: você pode ser criminoso, policial, ou alternar lados.",
-                            ].join("\n")
+                            "O **Submundo** é um evento de RP (Roleplay) e Economia onde duas forças colidem:\n" +
+                            "O **Mercado Negro** (criminosos, facções) e a **Polícia**.\n\n" +
+                            "**Como participar?**\n" +
+                            "Escolha seu lado. Não é necessário registro formal, basta começar a usar os comandos do seu lado.\n\n" +
+                            "**Principais Hubs (Use estes comandos!):**"
                         )
                         .addFields(
-                            {
-                                name: "Criminoso (Mercado Negro)",
-                                value: [
-                                    "• `/mercadonegro` (abre o menu do submundo)",
-                                    "• No menu: Vendedores → Comprar/Vender → Inventário",
-                                    "• No menu: Missões / Ranking / Caixa ilegal",
-                                    "• `/faccao` (abre o menu de facções e territórios)",
-                                ].join("\n"),
-                                inline: false,
+                            { 
+                                name: "💀 Para Criminosos", 
+                                value: "> `/faccao` - Crie sua org, domine territórios, venda drogas.\n> `/mercadonegro` - Compre armas, aceite missões, veja o ranking.", 
+                                inline: false 
+                            },
+                            { 
+                                name: "👮 Para Policiais", 
+                                value: "> `/policia` - Aliste-se, patrulhe, investigue crimes e prenda criminosos.", 
+                                inline: false 
                             },
                             {
-                                name: "Polícia",
-                                value: [
-                                    "• `/policia` (abre o menu da polícia)",
-                                    "• No menu: Candidatar → Patrulhar → Casos",
-                                    "• No menu: Checkpoint / Investigar / Capturar",
-                                    "• No menu: Missões / Ranking",
-                                ].join("\n"),
-                                inline: false,
-                            },
-                            {
-                                name: "Regras rápidas",
-                                value: [
-                                    "• Rivalidade e RP valem: alianças, propaganda e blefes são permitidos",
-                                    "• Proibido: ameaças reais, doxxing, assédio e golpes fora do RP",
-                                    "• Anti-cheat ativo: spam de ações pode bloquear temporariamente",
-                                ].join("\n"),
-                                inline: false,
+                                name: "💰 Economia & Política",
+                                value: "> `/bancocentral` - (Admin/Gerente) Tesouro do servidor.\n> `/eleicao` - Vote em representantes.",
+                                inline: false
                             }
                         )
-                        .setFooter({ text: "Dica: os comandos agora são hubs com menu (bem mais fácil)." });
+                        .setImage("https://media.discordapp.net/attachments/1327129759292559444/1336048039206256722/SUBMUNDO_BANNER.png?ex=67a11680&is=679fc500&hm=0a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p") // Placeholder visual se tiver
+                        .setFooter({ text: "Use o botão 'Voltar' para o menu principal." });
 
-                    return i.update({ embeds: [eventEmbed], components: [row] });
+                    const rowEvent = new Discord.MessageActionRow().addComponents(
+                        new Discord.MessageButton().setCustomId('help_btn_home').setLabel('Voltar').setStyle('SECONDARY')
+                    );
+                    
+                    return i.update({ embeds: [embedEvent], components: [rowEvent] });
                 }
 
-                if (categoriaSelecionada === "__EVENT_ADMIN__") {
-                    const canOpen =
-                        i.member?.permissions?.has("ADMINISTRATOR") ||
-                        i.member?.permissions?.has("MANAGE_GUILD");
-                    if (!canOpen) {
-                        return i.reply({ content: "❌ Apenas administradores podem abrir esta aba.", ephemeral: true });
-                    }
+                // --- COMANDOS GERAIS (CATEGORIAS) ---
+                if (i.customId === 'help_btn_general') {
+                    // Ler categorias
+                    const categorias = fs.readdirSync("./ComandosSlash/").filter(c => !["Admin", "Outros", "Economia"].includes(c)); 
+                    // Nota: "Economia" tem muita coisa do evento, mas também tem 'atm', 'pay'. 
+                    // Vamos incluir Economia mas filtrar comandos do evento depois se quiser, ou deixar tudo.
+                    // O usuário quer "Geral" separado de "Evento".
+                    
+                    // Vamos criar um Select Menu para as categorias clássicas
+                    const cats = ["Economia", "Diversao", "Interacao", "Utilidade", "Loja", "Moderacao"];
+                    
+                    const options = cats.map(cat => {
+                        let emoji = '📁';
+                        if (cat === 'Economia') emoji = '💵';
+                        if (cat === 'Diversao') emoji = '🎲';
+                        if (cat === 'Utilidade') emoji = '🛠️';
+                        if (cat === 'Moderacao') emoji = '🛡️';
+                        if (cat === 'Interacao') emoji = '🫂';
+                        if (cat === 'Loja') emoji = '🛒';
+                        
+                        return {
+                            label: cat,
+                            description: `Comandos de ${cat}`,
+                            value: `cat_${cat}`,
+                            emoji: emoji
+                        };
+                    });
 
-                    const adminEventEmbed = new Discord.MessageEmbed()
-                        .setTitle("🎪 Evento Submundo — Painel ADM")
-                        .setColor("DARK_GOLD")
-                        .setDescription("Comandos de administração do evento (visível apenas para ADM).")
+                    const rowSelect = new Discord.MessageActionRow().addComponents(
+                        new Discord.MessageSelectMenu()
+                            .setCustomId('help_select_general')
+                            .setPlaceholder('Escolha uma categoria...')
+                            .addOptions(options)
+                    );
+                    
+                    const rowBack = new Discord.MessageActionRow().addComponents(
+                        new Discord.MessageButton().setCustomId('help_btn_home').setLabel('Voltar').setStyle('SECONDARY')
+                    );
+
+                    const embedGen = new Discord.MessageEmbed()
+                        .setTitle("🤖 Comandos Gerais")
+                        .setColor("BLUE")
+                        .setDescription("Selecione uma categoria abaixo para ver os comandos convencionais do bot.");
+
+                    return i.update({ embeds: [embedGen], components: [rowSelect, rowBack] });
+                }
+
+                // --- ADMIN ---
+                if (i.customId === 'help_btn_admin') {
+                    if (!hasAdminPerm) return i.reply({ content: "Sem permissão.", ephemeral: true });
+
+                    const embedAdmin = new Discord.MessageEmbed()
+                        .setTitle("👑 Painel de Administração")
+                        .setColor("GOLD")
+                        .setDescription("Ferramentas para gestão do servidor e do evento.")
                         .addFields(
-                            {
-                                name: "Configuração",
-                                value: [
-                                    "• `/mercadonegro` → Configurar anúncios (ADM)",
-                                    "• `/mercadonegro` → Ativar/desativar (ADM)",
-                                    "• `/policia` → Definir chefe (ADM)",
-                                ].join("\n"),
-                                inline: false,
-                            },
-                            {
-                                name: "Operação",
-                                value: [
-                                    "• Incentive rivalidade: checkpoints, patrulhas e casos",
-                                    "• Use o tesouro para prêmios e recompensas",
-                                    "• Atrações automáticas rolam (leilão relâmpago)",
-                                ].join("\n"),
-                                inline: false,
-                            },
-                            {
-                                name: "Banco Central (tesouro)",
-                                value: [
-                                    "• `/bancocentral status`",
-                                    "• `/bancocentral gerente_adicionar usuario:@X escopo:(...)`",
-                                    "• `/bancocentral pagar usuario:@X valor:1000 motivo:...`",
-                                ].join("\n"),
-                                inline: false,
-                            },
-                            {
-                                name: "Economia e regras",
-                                value: [
-                                    "• `/politica set` (presidente/admin)",
-                                    "• `/crise iniciar|encerrar` (admin)",
-                                ].join("\n"),
-                                inline: false,
-                            }
+                            { name: "Evento", value: "`/bancocentral`, `/mercadonegro` (opções de admin), `/policia` (definir chefe).", inline: false },
+                            { name: "Moderação", value: "`/ban`, `/kick`, `/clear`", inline: false },
+                            { name: "Política", value: "`/crise`, `/eleicao`", inline: false }
                         );
 
-                    return i.update({ embeds: [adminEventEmbed], components: [row] });
+                    const rowBack = new Discord.MessageActionRow().addComponents(
+                        new Discord.MessageButton().setCustomId('help_btn_home').setLabel('Voltar').setStyle('SECONDARY')
+                    );
+
+                    return i.update({ embeds: [embedAdmin], components: [rowBack] });
                 }
 
-                if (categoriaSelecionada === "__ADM__") {
-                    const canOpen =
-                        i.member?.permissions?.has("ADMINISTRATOR") ||
-                        i.member?.permissions?.has("MANAGE_GUILD");
-                    if (!canOpen) {
-                        return i.reply({ content: "❌ Apenas administradores podem abrir esta aba.", ephemeral: true });
+                // --- VOLTAR (HOME) ---
+                if (i.customId === 'help_btn_home') {
+                    return i.update({ embeds: [embedHome], components: [rowHome] });
+                }
+
+                // --- SELEÇÃO DE CATEGORIA ---
+                if (i.isSelectMenu() && i.customId === 'help_select_general') {
+                    const catName = i.values[0].replace('cat_', '');
+                    
+                    let arquivos = [];
+                    try {
+                        arquivos = fs.readdirSync(`./ComandosSlash/${catName}/`).filter(file => file.endsWith(".js"));
+                    } catch (e) {
+                        return i.reply({ content: "Categoria vazia ou não encontrada.", ephemeral: true });
                     }
 
-                    const categoryEmbed = new Discord.MessageEmbed()
-                        .setTitle(`👑 Comandos ADM`)
-                        .setColor("RED")
-                        .setDescription("Comandos administrativos de eleição, política e crises.")
-                        .addFields(
-                            { name: "/eleicao iniciar", value: "Inicia eleição (admin).", inline: true },
-                            { name: "/eleicao encerrar", value: "Encerra eleição (admin).", inline: true },
-                            { name: "/politica set", value: "Ajusta imposto/salário/subsídio (presidente/admin).", inline: true },
-                            { name: "/crise iniciar", value: "Inicia crise global (admin).", inline: true },
-                            { name: "/crise encerrar", value: "Encerra crise global (admin).", inline: true },
-                            { name: "/policia", value: "Hub da polícia (inclui Definir chefe no menu).", inline: true }
-                        );
+                    const embedCat = new Discord.MessageEmbed()
+                        .setTitle(`📂 Categoria: ${catName}`)
+                        .setColor("BLUE")
+                        .setFooter({ text: "Use o menu para trocar de categoria ou Voltar para o início." });
 
-                    return i.update({ embeds: [categoryEmbed], components: [row] });
+                    const campos = arquivos.map(arquivo => {
+                        const cmd = require(`../${catName}/${arquivo}`);
+                        return {
+                            name: `/${cmd.name}`,
+                            value: cmd.description || "Sem descrição",
+                            inline: true
+                        };
+                    });
+
+                    if (campos.length <= 25) {
+                        embedCat.addFields(campos);
+                    } else {
+                        const desc = campos.map(c => `**${c.name}**: ${c.value}`).join('\n');
+                        embedCat.setDescription(desc.substring(0, 4096));
+                    }
+                    
+                    // Manter o menu de seleção e adicionar botão voltar
+                    return i.update({ embeds: [embedCat] }); // Mantém componentes antigos (o select menu e o botão voltar)
                 }
-
-                const arquivos = fs.readdirSync(`./ComandosSlash/${categoriaSelecionada}/`).filter(file => file.endsWith(".js"));
-
-                const categoryEmbed = new Discord.MessageEmbed()
-                    .setTitle(`${options.find(o => o.value === categoriaSelecionada).emoji} Comandos de ${categoriaSelecionada}`)
-                    .setColor("BLUE")
-                    .setFooter({ text: `Total: ${arquivos.length} comandos` });
-
-                const campos = arquivos.map(arquivo => {
-                    const cmd = require(`../${categoriaSelecionada}/${arquivo}`);
-                    return {
-                        name: `/${cmd.name}`,
-                        value: cmd.description || "Sem descrição",
-                        inline: true
-                    };
-                });
-
-                // Discord limita a 25 fields, vamos truncar se necessário ou apenas listar nomes se forem muitos
-                if (campos.length <= 25) {
-                    categoryEmbed.addFields(campos);
-                } else {
-                    const desc = campos.map(c => `**${c.name}**: ${c.value}`).join('\n');
-                    categoryEmbed.setDescription(desc.substring(0, 4096));
-                }
-
-                await i.update({ embeds: [categoryEmbed], components: [row] });
             });
 
             collector.on('end', () => {
                 const disabledRow = new Discord.MessageActionRow()
                     .addComponents(
-                        new Discord.MessageSelectMenu()
-                            .setCustomId('menu_help_disabled')
-                            .setPlaceholder('Menu expirado')
+                        new Discord.MessageButton()
+                            .setCustomId('expired')
+                            .setLabel('Menu Expirado')
+                            .setStyle('SECONDARY')
                             .setDisabled(true)
-                            .addOptions([{ label: 'Expirado', value: 'expired' }])
                     );
                 interaction.editReply({ components: [disabledRow] }).catch(() => {});
             });

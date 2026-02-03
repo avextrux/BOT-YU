@@ -369,6 +369,13 @@ module.exports = {
                         if (!item) return i.reply({ content: "❌ Item inválido. Veja em “Vendedores (NPCs)”.", ephemeral: true });
                         if (repNow.level < item.minLevel) return i.reply({ content: `🔒 Você precisa de reputação: **${itemUnlockName(item.minLevel)}**.`, ephemeral: true });
 
+                        // Checar desafio de mensagens (desafio de engajamento)
+                        const mainUser = await client.userdb.getOrCreate(interaction.user.id);
+                        const msgCount = mainUser.economia?.stats?.messagesSent || 0;
+                        if (item.minLevel >= 2 && msgCount < 50) return i.reply({ content: `🔒 Requisito de atividade: Você precisa enviar pelo menos **50 mensagens** no chat para negociar itens deste nível. (Atual: ${msgCount})`, ephemeral: true });
+                        if (item.minLevel >= 3 && msgCount < 200) return i.reply({ content: `🔒 Requisito de atividade: Você precisa enviar pelo menos **200 mensagens** no chat para negociar itens deste nível. (Atual: ${msgCount})`, ephemeral: true });
+                        if (item.minLevel >= 4 && msgCount < 500) return i.reply({ content: `🔒 Requisito de atividade: Você precisa enviar pelo menos **500 mensagens** no chat para negociar itens deste nível. (Atual: ${msgCount})`, ephemeral: true });
+
                         const vendor = (g.vendors || []).find((v) => v.vendorId === vendorId);
                         const vendorCatalog = VENDORS.find((v) => v.vendorId === vendorId);
                         if (!vendor || !vendorCatalog) return i.reply({ content: "❌ NPC inválido.", ephemeral: true });
