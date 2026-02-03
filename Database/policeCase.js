@@ -19,6 +19,9 @@ const PoliceCaseSchema = new Schema(
         status: { type: String, default: "open", index: true },
         suspectId: { type: String, default: null, index: true },
         assignedTo: { type: String, default: null, index: true },
+        kind: { type: String, default: "case", index: true },
+        districtId: { type: String, default: null, index: true },
+        hotUntil: { type: Number, default: 0, index: true },
 
         progress: { type: Number, default: 0, index: true },
         riskScore: { type: Number, default: 0 },
@@ -38,4 +41,3 @@ const PoliceCaseSchema = new Schema(
 );
 
 module.exports = model("PoliceCase", PoliceCaseSchema);
-

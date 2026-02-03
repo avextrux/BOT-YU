@@ -63,12 +63,29 @@ client.on("interactionCreate", async (interaction) => {
               interaction.member?.permissions?.has("ADMINISTRATOR") ||
               interaction.member?.permissions?.has("MANAGE_GUILD");
           if (!isAdminMember) return interaction.reply({ content: "❌ Apenas administradores.", ephemeral: true });
+          await interaction.deferReply({ ephemeral: true }).catch(() => {});
           const chId = interaction.fields.getTextInputValue('channel_id');
           const g = await client.blackMarketGuilddb.getOrCreate(interaction.guildId);
-          if (!g.announce) g.announce = { channelId: null, pingEveryone: false };
+          if (!g.announce) g.announce = { channelId: null, pingEveryone: false, policeRoleId: null, alertPolice: true };
           g.announce.channelId = chId;
           await g.save();
-          return interaction.reply({ content: `✅ Canal de anúncios definido para <#${chId}>.`, ephemeral: true });
+          return interaction.editReply({ content: `✅ Canal de anúncios definido para <#${chId}>.` });
+      }
+
+      if (interaction.customId === 'cfg_modal_police_role') {
+          const isAdminMember =
+              interaction.member?.permissions?.has("ADMINISTRATOR") ||
+              interaction.member?.permissions?.has("MANAGE_GUILD");
+          if (!isAdminMember) return interaction.reply({ content: "❌ Apenas administradores.", ephemeral: true });
+          await interaction.deferReply({ ephemeral: true }).catch(() => {});
+          const roleIdRaw = String(interaction.fields.getTextInputValue('police_role_id') || "").trim();
+          const roleId = roleIdRaw && /^\d{16,25}$/.test(roleIdRaw) ? roleIdRaw : null;
+
+          const g = await client.blackMarketGuilddb.getOrCreate(interaction.guildId);
+          if (!g.announce) g.announce = { channelId: null, pingEveryone: false, policeRoleId: null, alertPolice: true };
+          g.announce.policeRoleId = roleId;
+          await g.save();
+          return interaction.editReply({ content: roleId ? `✅ Cargo da polícia definido: <@&${roleId}>.` : "✅ Cargo da polícia removido." });
       }
 
       if (interaction.customId === 'cfg_modal_probs') {
@@ -76,6 +93,7 @@ client.on("interactionCreate", async (interaction) => {
               interaction.member?.permissions?.has("ADMINISTRATOR") ||
               interaction.member?.permissions?.has("MANAGE_GUILD");
           if (!isAdminMember) return interaction.reply({ content: "❌ Apenas administradores.", ephemeral: true });
+          await interaction.deferReply({ ephemeral: true }).catch(() => {});
           const clamp01 = (n, fallback) => {
               const v = Number(n);
               if (!Number.isFinite(v)) return fallback;
@@ -98,7 +116,7 @@ client.on("interactionCreate", async (interaction) => {
               checkpointOp,
           };
           await g.save();
-          return interaction.reply({ content: "✅ Probabilidades atualizadas.", ephemeral: true });
+          return interaction.editReply({ content: "✅ Probabilidades atualizadas." });
       }
 
       if (interaction.customId === 'cfg_modal_eco') {
@@ -106,6 +124,7 @@ client.on("interactionCreate", async (interaction) => {
               interaction.member?.permissions?.has("ADMINISTRATOR") ||
               interaction.member?.permissions?.has("MANAGE_GUILD");
           if (!isAdminMember) return interaction.reply({ content: "❌ Apenas administradores.", ephemeral: true });
+          await interaction.deferReply({ ephemeral: true }).catch(() => {});
           const decay = parseFloat(interaction.fields.getTextInputValue('eco_decay'));
           const patrol = parseFloat(interaction.fields.getTextInputValue('eco_patrol')) / 100;
           const cooldownMin = parseFloat(interaction.fields.getTextInputValue('eco_cooldown_min'));
@@ -116,7 +135,7 @@ client.on("interactionCreate", async (interaction) => {
           g.config.patrolBaseChance = isNaN(patrol) ? 0.08 : patrol;
           g.config.eventCooldownMs = isNaN(cooldownMin) ? (g.config.eventCooldownMs || 10 * 60 * 1000) : Math.max(0, Math.floor(cooldownMin * 60 * 1000));
           await g.save();
-          return interaction.reply({ content: "✅ Configurações econômicas atualizadas.", ephemeral: true });
+          return interaction.editReply({ content: "✅ Configurações econômicas atualizadas." });
       }
 
       if (interaction.customId === 'cfg_modal_activity') {
@@ -124,6 +143,7 @@ client.on("interactionCreate", async (interaction) => {
               interaction.member?.permissions?.has("ADMINISTRATOR") ||
               interaction.member?.permissions?.has("MANAGE_GUILD");
           if (!isAdminMember) return interaction.reply({ content: "❌ Apenas administradores.", ephemeral: true });
+          await interaction.deferReply({ ephemeral: true }).catch(() => {});
           const l2 = parseFloat(interaction.fields.getTextInputValue('act_level2'));
           const l3 = parseFloat(interaction.fields.getTextInputValue('act_level3'));
           const l4 = parseFloat(interaction.fields.getTextInputValue('act_level4'));
@@ -142,7 +162,7 @@ client.on("interactionCreate", async (interaction) => {
               level4: clampInt(l4, 500),
           };
           await g.save();
-          return interaction.reply({ content: "✅ Desafios de atividade atualizados.", ephemeral: true });
+          return interaction.editReply({ content: "✅ Desafios de atividade atualizados." });
       }
 
       if (interaction.customId === 'cfg_modal_rep') {
@@ -150,6 +170,7 @@ client.on("interactionCreate", async (interaction) => {
               interaction.member?.permissions?.has("ADMINISTRATOR") ||
               interaction.member?.permissions?.has("MANAGE_GUILD");
           if (!isAdminMember) return interaction.reply({ content: "❌ Apenas administradores.", ephemeral: true });
+          await interaction.deferReply({ ephemeral: true }).catch(() => {});
 
           const enabledRaw = String(interaction.fields.getTextInputValue('rep_enabled') || "").toLowerCase().trim();
           const enabled = ["sim", "s", "true", "1", "on"].includes(enabledRaw) ? true : ["nao", "não", "n", "false", "0", "off"].includes(enabledRaw) ? false : true;
@@ -160,7 +181,7 @@ client.on("interactionCreate", async (interaction) => {
           if (!g.config) g.config = {};
           g.config.repShop = { enabled, pricePerRep: price, maxPerDay };
           await g.save();
-          return interaction.reply({ content: "✅ Loja de reputação atualizada.", ephemeral: true });
+          return interaction.editReply({ content: "✅ Loja de reputação atualizada." });
       }
   }
 

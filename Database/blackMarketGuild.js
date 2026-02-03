@@ -79,6 +79,32 @@ const BlackMarketGuildSchema = new Schema(
                 pricePerRep: { type: Number, default: 120 },
                 maxPerDay: { type: Number, default: 250 },
             },
+            crime: {
+                robbery: {
+                    enabled: { type: Boolean, default: true },
+                    durationMs: { type: Number, default: 90 * 1000 },
+                    cooldownMs: { type: Number, default: 8 * 60 * 1000 },
+                    minDirty: { type: Number, default: 250 },
+                    maxDirty: { type: Number, default: 1800 },
+                    alertChance: { type: Number, default: 0.65 },
+                },
+                trafficking: {
+                    enabled: { type: Boolean, default: true },
+                    durationMs: { type: Number, default: 120 * 1000 },
+                    cooldownMs: { type: Number, default: 10 * 60 * 1000 },
+                    minDirty: { type: Number, default: 400 },
+                    maxDirty: { type: Number, default: 2600 },
+                    costMin: { type: Number, default: 200 },
+                    costMax: { type: Number, default: 1200 },
+                    alertChance: { type: Number, default: 0.75 },
+                },
+                laundering: {
+                    enabled: { type: Boolean, default: true },
+                    cooldownMs: { type: Number, default: 6 * 60 * 1000 },
+                    feePct: { type: Number, default: 0.18 },
+                    riskBase: { type: Number, default: 0.12 },
+                },
+            },
         },
 
         patrol: {
@@ -104,6 +130,8 @@ const BlackMarketGuildSchema = new Schema(
         announce: {
             channelId: { type: String, default: null },
             pingEveryone: { type: Boolean, default: false },
+            policeRoleId: { type: String, default: null },
+            alertPolice: { type: Boolean, default: true },
         },
     },
     { minimize: false }

@@ -8,6 +8,15 @@ module.exports = {
     type: "CHAT_INPUT",
     run: async (client, interaction) => {
         try {
+            const safe = async (p) => {
+                try {
+                    return await p;
+                } catch (e) {
+                    if (e?.code === 10062 || e?.code === 40060) return null;
+                    throw e;
+                }
+            };
+
             const root = path.resolve(__dirname, "..", "..");
             const commandsRoot = path.join(root, "ComandosSlash");
 
@@ -208,10 +217,11 @@ module.exports = {
 
             collector.on("collect", async (i) => {
                 try {
-                    if (i.user.id !== interaction.user.id) return i.reply({ content: "Use /help para abrir seu próprio menu.", ephemeral: true });
+                    if (i.user.id !== interaction.user.id) return safe(i.reply({ content: "Use /help para abrir seu próprio menu.", ephemeral: true }));
+                    await safe(i.deferUpdate());
 
                     if (i.isButton() && i.customId === "help_back_home") {
-                        return i.update({ embeds: [embedHome], components: [homeRow] });
+                        return safe(i.editReply({ embeds: [embedHome], components: [homeRow] }));
                     }
 
                     if (i.isButton() && i.customId === "help_home_event") {
@@ -227,7 +237,7 @@ module.exports = {
                                     "Admin pode ajustar chances em `/config_evento`.",
                                 ].join("\n")
                             );
-                        return i.update({ embeds: [e], components: [hubRow, backRow] });
+                        return safe(i.editReply({ embeds: [e], components: [hubRow, backRow] }));
                     }
 
                     if (i.isButton() && i.customId === "help_home_cmds") {
@@ -235,16 +245,16 @@ module.exports = {
                             .setTitle("🤖 Comandos — Cascata")
                             .setColor("BLUE")
                             .setDescription("Escolha uma categoria para ver os comandos em formato cascata.");
-                        return i.update({ embeds: [e], components: [generalRow, backRow] });
+                        return safe(i.editReply({ embeds: [e], components: [generalRow, backRow] }));
                     }
 
                     if (i.isButton() && i.customId === "help_home_admin") {
-                        if (!hasAdminPerm) return i.reply({ content: "❌ Apenas administração.", ephemeral: true });
+                        if (!hasAdminPerm) return safe(i.followUp({ content: "❌ Apenas administração.", ephemeral: true }));
                         const e = new Discord.MessageEmbed()
                             .setTitle("👑 Admin — Cascata")
                             .setColor("GOLD")
                             .setDescription("Escolha uma área para ver comandos em cascata.");
-                        return i.update({ embeds: [e], components: [adminRow, backRow] });
+                        return safe(i.editReply({ embeds: [e], components: [adminRow, backRow] }));
                     }
 
                     if (i.isSelectMenu() && i.customId === "help_select_category_general") {
@@ -254,24 +264,24 @@ module.exports = {
                             .setTitle(`${categoryEmoji(cat)} ${cat} — Cascata`)
                             .setColor("BLUE")
                             .setDescription(text || "Sem comandos.");
-                        return i.update({ embeds: [e], components: [generalRow, backRow] });
+                        return safe(i.editReply({ embeds: [e], components: [generalRow, backRow] }));
                     }
 
                     if (i.isSelectMenu() && i.customId === "help_select_category_admin") {
-                        if (!hasAdminPerm) return i.reply({ content: "❌ Apenas administração.", ephemeral: true });
+                        if (!hasAdminPerm) return safe(i.followUp({ content: "❌ Apenas administração.", ephemeral: true }));
                         const cat = String(i.values[0] || "").replace(/^acat_/, "");
                         const text = buildCascadeForCategory(cat);
                         const e = new Discord.MessageEmbed()
                             .setTitle(`${categoryEmoji(cat)} ${cat} — Cascata (Staff)`)
                             .setColor("GOLD")
                             .setDescription(text || "Sem comandos.");
-                        return i.update({ embeds: [e], components: [adminRow, backRow] });
+                        return safe(i.editReply({ embeds: [e], components: [adminRow, backRow] }));
                     }
 
                     if (i.isSelectMenu() && i.customId === "help_select_hub") {
                         const value = String(i.values[0] || "");
                         const hub = eventHubs.find((h) => h.value === value);
-                        if (!hub) return i.reply({ content: "❌ HUB inválido.", ephemeral: true });
+                        if (!hub) return safe(i.followUp({ content: "❌ HUB inválido.", ephemeral: true }));
                         const cmd = loadCommand(hub.file);
                         const actions = normalizeHubActions(cmd);
                         const descLines = [];
@@ -280,11 +290,11 @@ module.exports = {
                             .setTitle(`${hub.emoji} /${hub.id} — Ações`)
                             .setColor("DARK_BUT_NOT_BLACK")
                             .setDescription(descLines.length ? descLines.join("\n").slice(0, 3900) : "Sem ações cadastradas.");
-                        return i.update({ embeds: [e], components: [hubRow, backRow] });
+                        return safe(i.editReply({ embeds: [e], components: [hubRow, backRow] }));
                     }
                 } catch (err) {
                     console.error(err);
-                    i.reply({ content: "Erro ao abrir o menu.", ephemeral: true }).catch(() => {});
+                    i.followUp({ content: "Erro ao abrir o menu.", ephemeral: true }).catch(() => {});
                 }
             });
 

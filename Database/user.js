@@ -22,6 +22,7 @@ const userset = new Schema({
       },
       banco: { type: Number, default: 0 },
       money: { type: Number, default: 0 },
+      dirtyMoney: { type: Number, default: 0 },
       restrictions: {
         bannedUntil: { type: Number, default: 0 },
         blackMarketBannedUntil: { type: Number, default: 0 },

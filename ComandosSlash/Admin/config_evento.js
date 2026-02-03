@@ -16,6 +16,15 @@ module.exports = {
                 return interaction.reply({ content: "❌ Apenas administradores.", ephemeral: true });
             }
 
+            const safe = async (p) => {
+                try {
+                    return await p;
+                } catch (e) {
+                    if (e?.code === 10062 || e?.code === 40060) return null;
+                    throw e;
+                }
+            };
+
             const getSettings = async () => {
                 const g = await client.blackMarketGuilddb.getOrCreate(interaction.guildId);
                 if (!g.config) g.config = {};
@@ -27,11 +36,13 @@ module.exports = {
                 if (!g.config.checkpointBonus) g.config.checkpointBonus = 0.12;
                 if (!g.config.activityRequirements) g.config.activityRequirements = { level2: 50, level3: 200, level4: 500 };
                 if (!g.config.repShop) g.config.repShop = { enabled: true, pricePerRep: 120, maxPerDay: 250 };
-                if (!g.announce) g.announce = { channelId: null, pingEveryone: false };
+                if (!g.announce) g.announce = { channelId: null, pingEveryone: false, policeRoleId: null, alertPolice: true };
+                if (typeof g.announce.alertPolice !== "boolean") g.announce.alertPolice = true;
+                if (typeof g.announce.policeRoleId === "undefined") g.announce.policeRoleId = null;
                 return g;
             };
 
-            const g = await getSettings();
+            let cached = await getSettings();
 
             const menu = new Discord.MessageSelectMenu()
                 .setCustomId("config_evento_menu")
@@ -51,9 +62,9 @@ module.exports = {
                 .setColor("DARK_BUT_NOT_BLACK")
                 .setDescription("Use o menu abaixo para configurar o evento.")
                 .addFields(
-                    { name: "Estado", value: g.active ? "✅ Ativo" : "❌ Desativado", inline: true },
-                    { name: "Canal", value: g.announce?.channelId ? `<#${g.announce.channelId}>` : "Não definido", inline: true },
-                    { name: "Ping @everyone", value: g.announce?.pingEveryone ? "Sim" : "Não", inline: true }
+                    { name: "Estado", value: cached.active ? "✅ Ativo" : "❌ Desativado", inline: true },
+                    { name: "Canal", value: cached.announce?.channelId ? `<#${cached.announce.channelId}>` : "Não definido", inline: true },
+                    { name: "Ping @everyone", value: cached.announce?.pingEveryone ? "Sim" : "Não", inline: true }
                 );
 
             const msg = await interaction.reply({ embeds: [embed], components: [row], fetchReply: true, ephemeral: true });
@@ -61,17 +72,21 @@ module.exports = {
             const collector = msg.createMessageComponentCollector({ componentType: 'SELECT_MENU', idle: 120000 });
 
             collector.on('collect', async i => {
-                if (i.user.id !== interaction.user.id) return i.reply({ content: "Menu pessoal.", ephemeral: true });
+                if (i.user.id !== interaction.user.id) return safe(i.reply({ content: "Menu pessoal.", ephemeral: true }));
+                await safe(i.deferUpdate());
                 const action = i.values[0];
-                const g = await getSettings();
+                cached = await getSettings();
+                const g = cached;
 
                 if (action === "general") {
                     const rowGen = new Discord.MessageActionRow().addComponents(
                         new Discord.MessageButton().setCustomId("cfg_toggle_active").setLabel(g.active ? "Desativar Evento" : "Ativar Evento").setStyle(g.active ? "DANGER" : "SUCCESS"),
                         new Discord.MessageButton().setCustomId("cfg_toggle_ping").setLabel("Toggle @everyone").setStyle("SECONDARY"),
-                        new Discord.MessageButton().setCustomId("cfg_set_channel").setLabel("Definir Canal (ID)").setStyle("PRIMARY")
+                        new Discord.MessageButton().setCustomId("cfg_set_channel").setLabel("Definir Canal (ID)").setStyle("PRIMARY"),
+                        new Discord.MessageButton().setCustomId("cfg_toggle_police_alert").setLabel(g.announce.alertPolice ? "Alertas Polícia: ON" : "Alertas Polícia: OFF").setStyle("SECONDARY"),
+                        new Discord.MessageButton().setCustomId("cfg_set_police_role").setLabel("Cargo Polícia (ID)").setStyle("PRIMARY")
                     );
-                    return i.update({ content: "**Configuração Geral**", components: [rowGen] });
+                    return safe(i.editReply({ content: "**Configuração Geral**", embeds: [], components: [rowGen] }));
                 }
 
                 if (action === "probs") {
@@ -93,7 +108,7 @@ module.exports = {
                         .setColor("BLUE")
                         .setDescription(desc + "\n\n*O Tick ocorre a cada 1 minuto.*");
                     
-                    return i.update({ embeds: [e], components: [row, rowProbs] });
+                    return safe(i.editReply({ embeds: [e], components: [row, rowProbs] }));
                 }
 
                 if (action === "economy") {
@@ -114,7 +129,7 @@ module.exports = {
                         .setColor("GREEN")
                         .setDescription(desc);
                     
-                    return i.update({ embeds: [e], components: [row, rowEco] });
+                    return safe(i.editReply({ embeds: [e], components: [row, rowEco] }));
                 }
 
                 if (action === "activity") {
@@ -134,7 +149,7 @@ module.exports = {
                         .setColor("DARK_AQUA")
                         .setDescription(desc);
 
-                    return i.update({ embeds: [e], components: [row, rowAct] });
+                    return safe(i.editReply({ embeds: [e], components: [row, rowAct] }));
                 }
 
                 if (action === "rep") {
@@ -154,7 +169,7 @@ module.exports = {
                         .setColor("GOLD")
                         .setDescription(desc);
 
-                    return i.update({ embeds: [e], components: [row, rowRep] });
+                    return safe(i.editReply({ embeds: [e], components: [row, rowRep] }));
                 }
             });
 
@@ -162,31 +177,52 @@ module.exports = {
             const btnCollector = msg.createMessageComponentCollector({ componentType: 'BUTTON', idle: 120000 });
             
             btnCollector.on('collect', async i => {
-                if (i.user.id !== interaction.user.id) return i.reply({ content: "Menu pessoal.", ephemeral: true });
-                const g = await getSettings();
+                if (i.user.id !== interaction.user.id) return safe(i.reply({ content: "Menu pessoal.", ephemeral: true }));
 
                 if (i.customId === "cfg_toggle_active") {
+                    await safe(i.deferReply({ ephemeral: true }));
+                    const g = await getSettings();
                     g.active = !g.active;
                     await g.save();
-                    return i.reply({ content: `✅ Evento ${g.active ? "ATIVADO" : "DESATIVADO"}.`, ephemeral: true });
+                    cached = g;
+                    return safe(i.editReply({ content: `✅ Evento ${g.active ? "ATIVADO" : "DESATIVADO"}.` }));
                 }
 
                 if (i.customId === "cfg_toggle_ping") {
+                    await safe(i.deferReply({ ephemeral: true }));
+                    const g = await getSettings();
                     g.announce.pingEveryone = !g.announce.pingEveryone;
                     await g.save();
-                    return i.reply({ content: `✅ Ping @everyone: ${g.announce.pingEveryone ? "ON" : "OFF"}.`, ephemeral: true });
+                    cached = g;
+                    return safe(i.editReply({ content: `✅ Ping @everyone: ${g.announce.pingEveryone ? "ON" : "OFF"}.` }));
                 }
 
                 if (i.customId === "cfg_set_channel") {
                     const modal = new Discord.Modal().setCustomId("cfg_modal_channel").setTitle("Definir Canal");
                     const input = new Discord.TextInputComponent().setCustomId("channel_id").setLabel("ID do Canal").setStyle("SHORT").setRequired(true);
                     modal.addComponents(new Discord.MessageActionRow().addComponents(input));
-                    await i.showModal(modal);
+                    await safe(i.showModal(modal));
+                }
+
+                if (i.customId === "cfg_toggle_police_alert") {
+                    await safe(i.deferReply({ ephemeral: true }));
+                    const g = await getSettings();
+                    g.announce.alertPolice = !g.announce.alertPolice;
+                    await g.save();
+                    cached = g;
+                    return safe(i.editReply({ content: `✅ Alertas para polícia: ${g.announce.alertPolice ? "ON" : "OFF"}.` }));
+                }
+
+                if (i.customId === "cfg_set_police_role") {
+                    const modal = new Discord.Modal().setCustomId("cfg_modal_police_role").setTitle("Cargo da Polícia");
+                    const input = new Discord.TextInputComponent().setCustomId("police_role_id").setLabel("ID do cargo (vazio = nenhum)").setStyle("SHORT").setRequired(false);
+                    modal.addComponents(new Discord.MessageActionRow().addComponents(input));
+                    await safe(i.showModal(modal));
                 }
 
                 if (i.customId === "cfg_edit_probs") {
                     const modal = new Discord.Modal().setCustomId("cfg_modal_probs").setTitle("Probabilidades (0-100)");
-                    const p = g.config.eventProbs;
+                    const p = cached.config.eventProbs;
                     
                     modal.addComponents(
                         new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("prob_discount").setLabel("Desconto %").setValue((p.discount*100).toString()).setStyle("SHORT")),
@@ -195,43 +231,43 @@ module.exports = {
                         new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("prob_surplus").setLabel("Superávit %").setValue((p.surplus*100).toString()).setStyle("SHORT")),
                         new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("prob_checkpoint_op").setLabel("Checkpoint %").setValue(((p.checkpointOp || 0)*100).toString()).setStyle("SHORT"))
                     );
-                    await i.showModal(modal);
+                    await safe(i.showModal(modal));
                 }
 
                 if (i.customId === "cfg_edit_eco") {
                     const modal = new Discord.Modal().setCustomId("cfg_modal_eco").setTitle("Economia");
-                    const c = g.config;
+                    const c = cached.config;
                     
                     modal.addComponents(
                         new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("eco_decay").setLabel("Heat Decay / Hora").setValue(c.heatDecayPerHour.toString()).setStyle("SHORT")),
                         new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("eco_patrol").setLabel("Patrulha Base %").setValue((c.patrolBaseChance*100).toString()).setStyle("SHORT")),
                         new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("eco_cooldown_min").setLabel("Cooldown de Eventos (min)").setValue(String(Math.max(0, Math.floor((c.eventCooldownMs || 0) / 60000)))).setStyle("SHORT"))
                     );
-                    await i.showModal(modal);
+                    await safe(i.showModal(modal));
                 }
 
                 if (i.customId === "cfg_edit_activity") {
                     const modal = new Discord.Modal().setCustomId("cfg_modal_activity").setTitle("Desafios");
-                    const a = g.config.activityRequirements || { level2: 50, level3: 200, level4: 500 };
+                    const a = cached.config.activityRequirements || { level2: 50, level3: 200, level4: 500 };
 
                     modal.addComponents(
                         new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("act_level2").setLabel("Nível 2+ (mensagens)").setValue(String(Math.max(0, Math.floor(a.level2 || 0)))).setStyle("SHORT")),
                         new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("act_level3").setLabel("Nível 3+ (mensagens)").setValue(String(Math.max(0, Math.floor(a.level3 || 0)))).setStyle("SHORT")),
                         new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("act_level4").setLabel("Nível 4+ (mensagens)").setValue(String(Math.max(0, Math.floor(a.level4 || 0)))).setStyle("SHORT"))
                     );
-                    await i.showModal(modal);
+                    await safe(i.showModal(modal));
                 }
 
                 if (i.customId === "cfg_edit_rep") {
                     const modal = new Discord.Modal().setCustomId("cfg_modal_rep").setTitle("Loja de Reputação");
-                    const r = g.config.repShop || { enabled: true, pricePerRep: 120, maxPerDay: 250 };
+                    const r = cached.config.repShop || { enabled: true, pricePerRep: 120, maxPerDay: 250 };
 
                     modal.addComponents(
                         new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("rep_enabled").setLabel("Ativo? (sim/nao)").setValue(r.enabled ? "sim" : "nao").setStyle("SHORT")),
                         new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("rep_price").setLabel("Preço por 1 rep").setValue(String(Math.max(1, Math.floor(r.pricePerRep || 120)))).setStyle("SHORT")),
                         new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("rep_max").setLabel("Limite por dia (rep)").setValue(String(Math.max(0, Math.floor(r.maxPerDay || 0)))).setStyle("SHORT"))
                     );
-                    await i.showModal(modal);
+                    await safe(i.showModal(modal));
                 }
             });
 

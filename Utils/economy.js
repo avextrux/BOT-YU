@@ -157,6 +157,48 @@ async function transferBankToWallet(model, userId, amount, meta, { session } = {
   return updated;
 }
 
+async function creditDirtyMoney(model, userId, amount, type, meta, { session } = {}) {
+  const inc = Math.floor(amount);
+  if (!Number.isFinite(inc) || inc <= 0) return null;
+
+  const updated = await model.findOneAndUpdate(
+    { userID: userId },
+    {
+      $inc: { "economia.dirtyMoney": inc },
+      $push: {
+        "economia.transactions": {
+          $each: [tx(type, 0, 0, { ...(meta || null), dirtyDelta: inc })],
+          $slice: -50,
+        },
+      },
+    },
+    { new: true, ...(session ? { session } : {}) }
+  );
+
+  return updated;
+}
+
+async function debitDirtyMoneyIfEnough(model, userId, amount, type, meta, { session } = {}) {
+  const dec = Math.floor(amount);
+  if (!Number.isFinite(dec) || dec <= 0) return null;
+
+  const updated = await model.findOneAndUpdate(
+    { userID: userId, "economia.dirtyMoney": { $gte: dec } },
+    {
+      $inc: { "economia.dirtyMoney": -dec },
+      $push: {
+        "economia.transactions": {
+          $each: [tx(type, 0, 0, { ...(meta || null), dirtyDelta: -dec })],
+          $slice: -50,
+        },
+      },
+    },
+    { new: true, ...(session ? { session } : {}) }
+  );
+
+  return updated;
+}
+
 function errorEmbed(text) {
   return new Discord.MessageEmbed().setColor("RED").setDescription(text);
 }
@@ -171,8 +213,10 @@ module.exports = {
   tx,
   pushTx,
   creditWallet,
+  creditDirtyMoney,
   debitWalletIfEnough,
   debitBankIfEnough,
+  debitDirtyMoneyIfEnough,
   transferWalletToBank,
   transferBankToWallet,
   errorEmbed,

@@ -22,11 +22,20 @@ function parseUserId(raw) {
     return null;
 }
 
-async function promptOneLine(interaction, { prompt, timeMs = 60000 }) {
-    if (!interaction.channel || typeof interaction.channel.awaitMessages !== "function") return null;
-    await interaction.followUp({ content: prompt, ephemeral: true }).catch(() => {});
-    const filter = (m) => m.author?.id === interaction.user.id;
-    const collected = await interaction.channel.awaitMessages({ filter, max: 1, time: timeMs });
+async function safe(promise) {
+    try {
+        return await promise;
+    } catch (e) {
+        if (e?.code === 10062 || e?.code === 40060) return null;
+        throw e;
+    }
+}
+
+async function promptOneLine(interactionLike, { prompt, timeMs = 60000 }) {
+    if (!interactionLike.channel || typeof interactionLike.channel.awaitMessages !== "function") return null;
+    await interactionLike.followUp({ content: prompt, ephemeral: true }).catch(() => {});
+    const filter = (m) => m.author?.id === interactionLike.user.id;
+    const collected = await interactionLike.channel.awaitMessages({ filter, max: 1, time: timeMs });
     const msg = collected.first();
     if (!msg) return null;
     const value = msg.content;
@@ -67,6 +76,8 @@ module.exports = {
         "Definir chefe (ADM) — admin define chefe",
         "Patrulhar — buscar pistas e casos",
         "Checkpoint — aumenta interceptações",
+        "Alertas — assaltos/tráfico/lavagem em andamento",
+        "Intervir — tentar interromper (por ID do caso)",
         "Casos — listar abertos",
         "Ver caso — detalhes",
         "Investigar caso — avançar progresso",
@@ -96,6 +107,8 @@ module.exports = {
                     { label: "Definir chefe (ADM)", value: "definir_chefe", description: "Admin define o chefe" },
                     { label: "Patrulhar", value: "patrulhar", description: "Buscar pistas e casos" },
                     { label: "Checkpoint", value: "checkpoint", description: "Aumenta interceptações" },
+                    { label: "Alertas", value: "alertas", description: "Crimes em andamento" },
+                    { label: "Intervir", value: "intervir", description: "Tentar interromper um alerta" },
                     { label: "Casos", value: "casos", description: "Lista casos abertos" },
                     { label: "Ver caso", value: "caso_ver", description: "Detalhes do caso" },
                     { label: "Investigar caso", value: "caso_investigar", description: "Avançar progresso" },
@@ -121,11 +134,12 @@ module.exports = {
 
             collector.on("collect", async (i) => {
                 try {
-                    if (i.user.id !== interaction.user.id) return i.reply({ content: "❌ Esse menu é do autor do comando.", ephemeral: true });
+                    if (i.user.id !== interaction.user.id) return safe(i.reply({ content: "❌ Esse menu é do autor do comando.", ephemeral: true }));
                     const action = i.values[0];
+                    await safe(i.deferUpdate());
 
                     const gate = await ensureEconomyAllowed(client, interaction, interaction.user.id);
-                    if (!gate.ok) return i.reply({ embeds: [gate.embed], ephemeral: true });
+                    if (!gate.ok) return safe(i.followUp({ embeds: [gate.embed], ephemeral: true }));
 
                     const pol = await getPolice(client, interaction.guildId);
                     const meIsChief = isChief(pol, interaction.user.id);
@@ -140,36 +154,36 @@ module.exports = {
                             .addField("Oficiais", String((pol.officers || []).length), true)
                             .addField("Você", meIsOfficer ? "✅ Polícia" : "⚠️ Civil", true)
                             .addField("Seus stats", `Apreensão: ${formatMoney(st.seizuresValue || 0)}\nCasos: ${st.casesClosed || 0}\nPatrulhas: ${st.patrols || 0}`, false);
-                        return i.update({ embeds: [e], components: [row] });
+                        return safe(i.editReply({ embeds: [e], components: [row] }));
                     }
 
                     if (action === "definir_chefe") {
-                        if (!canAdmin(interaction)) return i.reply({ content: "❌ Apenas admin pode definir chefe.", ephemeral: true });
-                        const raw = await promptOneLine(interaction, { prompt: "Digite o @ (ou ID) do chefe.", timeMs: 60000 });
-                        if (!raw) return i.reply({ content: "⏳ Tempo esgotado.", ephemeral: true });
+                        if (!canAdmin(interaction)) return safe(i.followUp({ content: "❌ Apenas admin pode definir chefe.", ephemeral: true }));
+                        const raw = await promptOneLine(i, { prompt: "Digite o @ (ou ID) do chefe.", timeMs: 60000 });
+                        if (!raw) return safe(i.followUp({ content: "⏳ Tempo esgotado.", ephemeral: true }));
                         const id = parseUserId(raw);
-                        if (!id) return i.reply({ content: "❌ Usuário inválido.", ephemeral: true });
+                        if (!id) return safe(i.followUp({ content: "❌ Usuário inválido.", ephemeral: true }));
                         pol.chiefId = id;
                         if (!Array.isArray(pol.officers)) pol.officers = [];
                         if (!pol.officers.includes(id)) pol.officers.push(id);
                         await pol.save().catch(() => {});
-                        return i.reply({ content: `✅ Chefe definido: <@${id}>.`, ephemeral: true });
+                        return safe(i.followUp({ content: `✅ Chefe definido: <@${id}>.`, ephemeral: true }));
                     }
 
                     if (action === "candidatar") {
-                        if (!pol.chiefId) return i.reply({ content: "❌ Ainda não existe chefe. Admin precisa definir.", ephemeral: true });
-                        if (meIsOfficer) return i.reply({ content: "❌ Você já é polícia.", ephemeral: true });
+                        if (!pol.chiefId) return safe(i.followUp({ content: "❌ Ainda não existe chefe. Admin precisa definir.", ephemeral: true }));
+                        if (meIsOfficer) return safe(i.followUp({ content: "❌ Você já é polícia.", ephemeral: true }));
                         const existing = (pol.requests || []).find((r) => r.userId === interaction.user.id && r.status === "pending");
-                        if (existing) return i.reply({ content: "⏳ Você já tem um pedido pendente.", ephemeral: true });
-                        const reason = await promptOneLine(interaction, { prompt: "Digite em 1 linha por que você deve ser polícia (opcional).", timeMs: 60000 });
+                        if (existing) return safe(i.followUp({ content: "⏳ Você já tem um pedido pendente.", ephemeral: true }));
+                        const reason = await promptOneLine(i, { prompt: "Digite em 1 linha por que você deve ser polícia (opcional).", timeMs: 60000 });
                         pol.requests = (pol.requests || []).slice(-50);
                         pol.requests.push({ at: Date.now(), userId: interaction.user.id, reason: (reason || "").slice(0, 140), status: "pending", decidedAt: 0, decidedBy: null });
                         await pol.save().catch(() => {});
-                        return i.reply({ content: "✅ Pedido enviado. Aguarde o chefe/aprovação.", ephemeral: true });
+                        return safe(i.followUp({ content: "✅ Pedido enviado. Aguarde o chefe/aprovação.", ephemeral: true }));
                     }
 
                     if (["pedidos", "aceitar", "recusar"].includes(action)) {
-                        if (!meIsChief && !canAdmin(interaction)) return i.reply({ content: "❌ Apenas chefe/admin.", ephemeral: true });
+                        if (!meIsChief && !canAdmin(interaction)) return safe(i.followUp({ content: "❌ Apenas chefe/admin.", ephemeral: true }));
                     }
 
                     if (action === "pedidos") {
@@ -178,33 +192,33 @@ module.exports = {
                             ? pend.map((r) => `• <@${r.userId}> — <t:${Math.floor((r.at || 0) / 1000)}:R>\n  ${r.reason || "-"}`).join("\n")
                             : "Nenhum pedido pendente.";
                         const e = new Discord.MessageEmbed().setTitle("📨 Pedidos Pendentes").setColor("BLURPLE").setDescription(lines.slice(0, 3900));
-                        return i.update({ embeds: [e], components: [row] });
+                        return safe(i.editReply({ embeds: [e], components: [row] }));
                     }
 
                     if (action === "aceitar") {
-                        const raw = await promptOneLine(interaction, { prompt: "Digite o @ (ou ID) do candidato para aceitar.", timeMs: 60000 });
-                        if (!raw) return i.reply({ content: "⏳ Tempo esgotado.", ephemeral: true });
+                        const raw = await promptOneLine(i, { prompt: "Digite o @ (ou ID) do candidato para aceitar.", timeMs: 60000 });
+                        if (!raw) return safe(i.followUp({ content: "⏳ Tempo esgotado.", ephemeral: true }));
                         const id = parseUserId(raw);
-                        if (!id) return i.reply({ content: "❌ Usuário inválido.", ephemeral: true });
+                        if (!id) return safe(i.followUp({ content: "❌ Usuário inválido.", ephemeral: true }));
                         if (!Array.isArray(pol.officers)) pol.officers = [];
                         if (!pol.officers.includes(id)) pol.officers.push(id);
                         pol.requests = (pol.requests || []).map((r) => (r.userId === id && r.status === "pending" ? { ...r, status: "accepted", decidedAt: Date.now(), decidedBy: interaction.user.id } : r));
                         await pol.save().catch(() => {});
-                        return i.reply({ content: `✅ <@${id}> aceito como policial.`, ephemeral: true });
+                        return safe(i.followUp({ content: `✅ <@${id}> aceito como policial.`, ephemeral: true }));
                     }
 
                     if (action === "recusar") {
-                        const raw = await promptOneLine(interaction, { prompt: "Digite o @ (ou ID) do candidato para recusar.", timeMs: 60000 });
-                        if (!raw) return i.reply({ content: "⏳ Tempo esgotado.", ephemeral: true });
+                        const raw = await promptOneLine(i, { prompt: "Digite o @ (ou ID) do candidato para recusar.", timeMs: 60000 });
+                        if (!raw) return safe(i.followUp({ content: "⏳ Tempo esgotado.", ephemeral: true }));
                         const id = parseUserId(raw);
-                        if (!id) return i.reply({ content: "❌ Usuário inválido.", ephemeral: true });
+                        if (!id) return safe(i.followUp({ content: "❌ Usuário inválido.", ephemeral: true }));
                         pol.requests = (pol.requests || []).map((r) => (r.userId === id && r.status === "pending" ? { ...r, status: "rejected", decidedAt: Date.now(), decidedBy: interaction.user.id } : r));
                         await pol.save().catch(() => {});
-                        return i.reply({ content: `✅ <@${id}> recusado.`, ephemeral: true });
+                        return safe(i.followUp({ content: `✅ <@${id}> recusado.`, ephemeral: true }));
                     }
 
-                    if (["patrulhar", "checkpoint", "casos", "caso_ver", "caso_investigar", "caso_capturar", "missoes", "resgatar", "ranking"].includes(action)) {
-                        if (!meIsOfficer) return i.reply({ content: "❌ Você não é polícia. Use **Candidatar** e aguarde aprovação.", ephemeral: true });
+                    if (["patrulhar", "checkpoint", "alertas", "intervir", "casos", "caso_ver", "caso_investigar", "caso_capturar", "missoes", "resgatar", "ranking"].includes(action)) {
+                        if (!meIsOfficer) return safe(i.followUp({ content: "❌ Você não é polícia. Use **Candidatar** e aguarde aprovação.", ephemeral: true }));
                     }
 
                     if (action === "ranking") {
@@ -218,7 +232,7 @@ module.exports = {
                             ? top.map((x, idx) => `**${idx + 1}.** <@${x.id}> — ${formatMoney(x.s.seizuresValue || 0)} apreendidos • ${x.s.casesClosed || 0} casos`).join("\n")
                             : "Sem dados ainda.";
                         const e = new Discord.MessageEmbed().setTitle("🏆 Ranking da Polícia").setColor("BLURPLE").setDescription(lines);
-                        return i.update({ embeds: [e], components: [row] });
+                        return safe(i.editReply({ embeds: [e], components: [row] }));
                     }
 
                     if (action === "casos") {
@@ -227,15 +241,15 @@ module.exports = {
                             ? list.map((c) => `• **${c.caseId}** — suspeito <@${c.suspectId}> • ${c.progress || 0}% • ${formatMoney(c.estimatedValue || 0)}`).join("\n")
                             : "Nenhum caso aberto.";
                         const e = new Discord.MessageEmbed().setTitle("🗂️ Casos Abertos").setColor("BLURPLE").setDescription(lines);
-                        return i.update({ embeds: [e], components: [row] });
+                        return safe(i.editReply({ embeds: [e], components: [row] }));
                     }
 
                     if (action === "caso_ver") {
-                        const idRaw = await promptOneLine(interaction, { prompt: "Digite o ID do caso (ex.: CASEABC123).", timeMs: 60000 });
-                        if (!idRaw) return i.reply({ content: "⏳ Tempo esgotado.", ephemeral: true });
+                        const idRaw = await promptOneLine(i, { prompt: "Digite o ID do caso (ex.: CASEABC123).", timeMs: 60000 });
+                        if (!idRaw) return safe(i.followUp({ content: "⏳ Tempo esgotado.", ephemeral: true }));
                         const id = idRaw.trim().toUpperCase();
                         const c = await client.policeCasedb.findOne({ guildID: interaction.guildId, caseId: id });
-                        if (!c) return i.reply({ content: "❌ Caso não encontrado.", ephemeral: true });
+                        if (!c) return safe(i.followUp({ content: "❌ Caso não encontrado.", ephemeral: true }));
                         const last = (c.evidence || []).slice(-6).map((e) => `• ${e.kind} <t:${Math.floor((e.at || 0) / 1000)}:R>`).join("\n") || "-";
                         const e = new Discord.MessageEmbed()
                             .setTitle(`🗂️ Caso ${c.caseId}`)
@@ -244,22 +258,22 @@ module.exports = {
                             .addField("Valor estimado", formatMoney(c.estimatedValue || 0), true)
                             .addField("Risco", `${c.riskScore || 0}/100`, true)
                             .addField("Evidências recentes", last, false);
-                        return i.update({ embeds: [e], components: [row] });
+                        return safe(i.editReply({ embeds: [e], components: [row] }));
                     }
 
                     if (action === "caso_investigar") {
-                        const idRaw = await promptOneLine(interaction, { prompt: "Digite o ID do caso para investigar.", timeMs: 60000 });
-                        if (!idRaw) return i.reply({ content: "⏳ Tempo esgotado.", ephemeral: true });
+                        const idRaw = await promptOneLine(i, { prompt: "Digite o ID do caso para investigar.", timeMs: 60000 });
+                        if (!idRaw) return safe(i.followUp({ content: "⏳ Tempo esgotado.", ephemeral: true }));
                         const id = idRaw.trim().toUpperCase();
                         const c = await client.policeCasedb.findOne({ guildID: interaction.guildId, caseId: id, status: "open" });
-                        if (!c) return i.reply({ content: "❌ Caso não encontrado ou já encerrado.", ephemeral: true });
+                        if (!c) return safe(i.followUp({ content: "❌ Caso não encontrado ou já encerrado.", ephemeral: true }));
 
                         const u = await client.blackMarketUserdb.getOrCreate(interaction.guildId, interaction.user.id);
                         const g = await client.blackMarketGuilddb.getOrCreate(interaction.guildId);
                         syncMissions(g, u);
                         const now = Date.now();
                         const cd = u.cooldowns?.patrol || 0;
-                        if (now < cd) return i.reply({ content: `⏳ Investigação disponível <t:${Math.floor(cd / 1000)}:R>.`, ephemeral: true });
+                        if (now < cd) return safe(i.followUp({ content: `⏳ Investigação disponível <t:${Math.floor(cd / 1000)}:R>.`, ephemeral: true }));
                         u.cooldowns.patrol = now + 6 * 60 * 1000;
 
                         const inc = Math.floor(10 + Math.random() * 18);
@@ -278,16 +292,16 @@ module.exports = {
                         setOfficerStats(pol, interaction.user.id, st);
                         await pol.save().catch(() => {});
 
-                        return i.reply({ content: `🔎 Caso **${c.caseId}** agora está em **${c.progress}%**.`, ephemeral: true });
+                        return safe(i.followUp({ content: `🔎 Caso **${c.caseId}** agora está em **${c.progress}%**.`, ephemeral: true }));
                     }
 
                     if (action === "caso_capturar") {
-                        const idRaw = await promptOneLine(interaction, { prompt: "Digite o ID do caso para capturar.", timeMs: 60000 });
-                        if (!idRaw) return i.reply({ content: "⏳ Tempo esgotado.", ephemeral: true });
+                        const idRaw = await promptOneLine(i, { prompt: "Digite o ID do caso para capturar.", timeMs: 60000 });
+                        if (!idRaw) return safe(i.followUp({ content: "⏳ Tempo esgotado.", ephemeral: true }));
                         const id = idRaw.trim().toUpperCase();
                         const c = await client.policeCasedb.findOne({ guildID: interaction.guildId, caseId: id, status: "open" });
-                        if (!c) return i.reply({ content: "❌ Caso não encontrado ou já encerrado.", ephemeral: true });
-                        if ((c.progress || 0) < 80) return i.reply({ content: "❌ Progresso insuficiente para capturar (mínimo 80%).", ephemeral: true });
+                        if (!c) return safe(i.followUp({ content: "❌ Caso não encontrado ou já encerrado.", ephemeral: true }));
+                        if ((c.progress || 0) < 80) return safe(i.followUp({ content: "❌ Progresso insuficiente para capturar (mínimo 80%).", ephemeral: true }));
 
                         const now = Date.now();
                         const successChance = Math.min(0.92, 0.35 + (c.progress || 0) / 120);
@@ -297,7 +311,7 @@ module.exports = {
                             c.evidence.push({ at: now, kind: "failed_capture", by: interaction.user.id, data: { note: "escapou" } });
                             c.evidence = c.evidence.slice(-50);
                             await c.save().catch(() => {});
-                            return i.reply({ content: `❌ Falhou. Caso **${c.caseId}** caiu para **${c.progress}%**.`, ephemeral: true });
+                            return safe(i.followUp({ content: `❌ Falhou. Caso **${c.caseId}** caiu para **${c.progress}%**.`, ephemeral: true }));
                         }
 
                         const seizedValue = Math.floor((c.estimatedValue || 0) * (0.30 + Math.random() * 0.20));
@@ -345,14 +359,14 @@ module.exports = {
                         await bmGuild.save().catch(() => {});
                         await bmUser.save().catch(() => {});
 
-                        return i.reply({ content: `✅ Captura feita. Suspeito banido por **${mins} min**. Apreensão: **${formatMoney(seizedValue)}**. Recompensa paga: **${formatMoney(paid)}**.`, ephemeral: true });
+                        return safe(i.followUp({ content: `✅ Captura feita. Suspeito banido por **${mins} min**. Apreensão: **${formatMoney(seizedValue)}**. Recompensa paga: **${formatMoney(paid)}**.`, ephemeral: true }));
                     }
 
                     if (action === "checkpoint") {
-                        const raw = await promptOneLine(interaction, { prompt: `Digite o distrito do checkpoint:\n${districtsText()}\n\nExemplo: \`central\``, timeMs: 60000 });
-                        if (!raw) return i.reply({ content: "⏳ Tempo esgotado.", ephemeral: true });
+                        const raw = await promptOneLine(i, { prompt: `Digite o distrito do checkpoint:\n${districtsText()}\n\nExemplo: \`central\``, timeMs: 60000 });
+                        if (!raw) return safe(i.followUp({ content: "⏳ Tempo esgotado.", ephemeral: true }));
                         const districtId = raw.trim().toLowerCase();
-                        if (!DISTRICTS.some((d) => d.id === districtId)) return i.reply({ content: "❌ Distrito inválido.", ephemeral: true });
+                        if (!DISTRICTS.some((d) => d.id === districtId)) return safe(i.followUp({ content: "❌ Distrito inválido.", ephemeral: true }));
 
                         const g = await client.blackMarketGuilddb.getOrCreate(interaction.guildId);
                         if (!g.config) g.config = {};
@@ -360,14 +374,14 @@ module.exports = {
                         const now = Date.now();
                         const max = Math.max(1, Math.floor(g.config.maxCheckpoints || 3));
                         const list = (g.checkpoints || []).filter((c) => (c.activeUntil || 0) > now);
-                        if (list.length >= max) return i.reply({ content: `❌ Limite de checkpoints ativos atingido (${max}).`, ephemeral: true });
+                        if (list.length >= max) return safe(i.followUp({ content: `❌ Limite de checkpoints ativos atingido (${max}).`, ephemeral: true }));
                         const duration = Math.max(5 * 60 * 1000, Math.floor(g.config.checkpointDurationMs || 20 * 60 * 1000));
                         g.checkpoints = list.concat([{ districtId, createdAt: now, activeUntil: now + duration, placedBy: interaction.user.id }]).slice(-20);
                         await g.save().catch(() => {});
 
                         const u = await client.blackMarketUserdb.getOrCreate(interaction.guildId, interaction.user.id);
                         const cd = u.cooldowns?.checkpoint || 0;
-                        if (now < cd) return i.reply({ content: `⏳ Checkpoint disponível <t:${Math.floor(cd / 1000)}:R>.`, ephemeral: true });
+                        if (now < cd) return safe(i.followUp({ content: `⏳ Checkpoint disponível <t:${Math.floor(cd / 1000)}:R>.`, ephemeral: true }));
                         u.cooldowns.checkpoint = now + 12 * 60 * 1000;
                         syncMissions(g, u);
                         applyMissionProgress(u, { side: "police", type: "checkpoint", delta: 1 });
@@ -380,7 +394,97 @@ module.exports = {
                         setOfficerStats(pol, interaction.user.id, st);
                         await pol.save().catch(() => {});
 
-                        return i.reply({ content: `✅ Checkpoint colocado em **${districtId}** por **${Math.floor(duration / 60000)} min**.`, ephemeral: true });
+                        return safe(i.followUp({ content: `✅ Checkpoint colocado em **${districtId}** por **${Math.floor(duration / 60000)} min**.`, ephemeral: true }));
+                    }
+
+                    if (action === "alertas") {
+                        const now = Date.now();
+                        const list = await client.policeCasedb
+                            .find({
+                                guildID: interaction.guildId,
+                                status: "open",
+                                hotUntil: { $gt: now },
+                                kind: { $in: ["robbery", "trafficking", "laundering"] },
+                            })
+                            .sort({ hotUntil: 1 })
+                            .limit(15)
+                            .lean();
+
+                        const kindName = (k) => (k === "robbery" ? "Assalto" : k === "trafficking" ? "Tráfico" : k === "laundering" ? "Lavagem" : k);
+                        const lines = list.length
+                            ? list
+                                  .map((c) => {
+                                      const district = (DISTRICTS.find((d) => d.id === c.districtId) || {}).name || (c.districtId || "—");
+                                      return `• **${c.caseId}** — ${kindName(c.kind)} • **${district}** • suspeito <@${c.suspectId}> • termina <t:${Math.floor((c.hotUntil || 0) / 1000)}:R> • ${formatMoney(c.estimatedValue || 0)}`;
+                                  })
+                                  .join("\n")
+                            : "Nenhum alerta ativo agora.";
+
+                        const e = new Discord.MessageEmbed().setTitle("🚨 Alertas em Andamento").setColor("RED").setDescription(lines.slice(0, 3900));
+                        return safe(i.editReply({ embeds: [e], components: [row] }));
+                    }
+
+                    if (action === "intervir") {
+                        const raw = await promptOneLine(i, { prompt: "Digite o ID do caso (ex.: CASEABC123).", timeMs: 60000 });
+                        if (!raw) return safe(i.followUp({ content: "⏳ Tempo esgotado.", ephemeral: true }));
+                        const caseId = raw.trim().toUpperCase();
+                        const now = Date.now();
+
+                        const c = await client.policeCasedb.findOne({ guildID: interaction.guildId, caseId, status: "open" });
+                        if (!c) return safe(i.followUp({ content: "❌ Caso não encontrado ou já encerrado.", ephemeral: true }));
+                        if ((c.hotUntil || 0) <= now) return safe(i.followUp({ content: "❌ Esse alerta já expirou.", ephemeral: true }));
+
+                        const districtId = c.districtId || "central";
+                        const g = await client.blackMarketGuilddb.getOrCreate(interaction.guildId);
+                        const patrolIntensity = Math.max(0, Math.min(1, Number(g.patrol?.intensity || 0.35)));
+                        const checkpointActive = (g.checkpoints || []).some((cp) => cp.districtId === districtId && (cp.activeUntil || 0) > now);
+
+                        const base = c.kind === "robbery" ? 0.62 : c.kind === "trafficking" ? 0.52 : 0.58;
+                        const chance = Math.max(0.05, Math.min(0.9, base + patrolIntensity * 0.22 + (checkpointActive ? 0.12 : 0)));
+                        const success = Math.random() < chance;
+
+                        if (!success) {
+                            c.evidence.push({ at: now, kind: "intervention_failed", by: interaction.user.id, data: { chance } });
+                            c.evidence = c.evidence.slice(-50);
+                            await c.save().catch(() => {});
+                            return safe(i.followUp({ content: `❌ Intervenção falhou. Chance: ${(chance * 100).toFixed(0)}%.`, ephemeral: true }));
+                        }
+
+                        const suspect = await client.userdb.getOrCreate(c.suspectId);
+                        const dirty = Math.max(0, Math.floor(suspect.economia?.dirtyMoney || 0));
+                        const target = Math.max(0, Math.floor(c.estimatedValue || 0));
+                        const seized = Math.max(0, Math.min(dirty, Math.max(1, Math.floor(target * 0.9))));
+
+                        if (seized > 0) {
+                            await client.userdb.updateOne({ userID: c.suspectId }, { $inc: { "economia.dirtyMoney": -seized } }).catch(() => {});
+                        }
+
+                        const mins = 12;
+                        const until = now + mins * 60 * 1000;
+                        await client.userdb.updateOne(
+                            { userID: c.suspectId },
+                            { $set: { "economia.restrictions.blackMarketBannedUntil": Math.max(Number(suspect.economia?.restrictions?.blackMarketBannedUntil || 0), until) } }
+                        ).catch(() => {});
+
+                        const reward = Math.max(0, Math.floor(seized * 0.25));
+                        if (reward > 0) await creditWallet(client.userdb, interaction.user.id, reward, "police_intervention_reward", { guildId: interaction.guildId, caseId }).catch(() => {});
+
+                        c.status = "closed";
+                        c.resolvedAt = now;
+                        c.resolution = { kind: "intercepted", by: interaction.user.id, reward, seizedValue: seized };
+                        c.evidence.push({ at: now, kind: "intercepted", by: interaction.user.id, data: { seized, reward } });
+                        c.evidence = c.evidence.slice(-50);
+                        await c.save().catch(() => {});
+
+                        const st = getOfficerStats(pol, interaction.user.id);
+                        st.seizuresValue = Math.floor((st.seizuresValue || 0) + seized);
+                        st.casesClosed = Math.floor((st.casesClosed || 0) + 1);
+                        st.xp = Math.floor((st.xp || 0) + 18);
+                        st.lastActionAt = now;
+                        setOfficerStats(pol, interaction.user.id, st);
+                        await pol.save().catch(() => {});
+
+                        return safe(i.followUp({ content: `✅ Intervenção bem-sucedida. Apreendido: **${formatMoney(seized)}** (dinheiro sujo). Recompensa: **${formatMoney(reward)}**. Suspeito banido do Submundo por **${mins} min**.`, ephemeral: true }));
                     }
 
                     if (action === "patrulhar") {
@@ -389,7 +493,7 @@ module.exports = {
                         syncMissions(g, u);
                         const now = Date.now();
                         const cd = u.cooldowns?.patrol || 0;
-                        if (now < cd) return i.reply({ content: `⏳ Patrulha disponível <t:${Math.floor(cd / 1000)}:R>.`, ephemeral: true });
+                        if (now < cd) return safe(i.followUp({ content: `⏳ Patrulha disponível <t:${Math.floor(cd / 1000)}:R>.`, ephemeral: true }));
                         u.cooldowns.patrol = now + 7 * 60 * 1000;
 
                         const suspects = await client.blackMarketUserdb.find({ guildID: interaction.guildId, "heat.level": { $gte: 15 } }).sort({ "heat.level": -1 }).limit(20).lean();
@@ -408,11 +512,24 @@ module.exports = {
                         await ensureTerritories(client, interaction.guildId);
                         await applyPoliceInfluence(client, interaction.guildId, DISTRICTS[Math.floor(Math.random() * DISTRICTS.length)].id, 4).catch(() => {});
 
-                        if (!pick) return i.reply({ content: "🚓 Patrulha concluída. Nada relevante hoje.", ephemeral: true });
+                        if (!pick) return safe(i.followUp({ content: "🚓 Patrulha concluída. Nada relevante hoje.", ephemeral: true }));
 
                         const chance = Math.min(0.75, 0.15 + (pick.heat?.level || 0) / 120);
                         const found = Math.random() < chance;
-                        if (!found) return i.reply({ content: "🚓 Patrulha concluída. Nenhuma pista concreta.", ephemeral: true });
+                        if (!found) return safe(i.followUp({ content: "🚓 Patrulha concluída. Nenhuma pista concreta.", ephemeral: true }));
+
+                        const suspectMain = await client.userdb.getOrCreate(pick.userID);
+                        const dirty = Math.max(0, Math.floor(suspectMain.economia?.dirtyMoney || 0));
+                        if (dirty > 0 && Math.random() < 0.55) {
+                            const seized = Math.max(1, Math.floor(dirty * (0.15 + Math.random() * 0.25)));
+                            await client.userdb.updateOne({ userID: pick.userID }, { $inc: { "economia.dirtyMoney": -seized } }).catch(() => {});
+                            const st2 = getOfficerStats(pol, interaction.user.id);
+                            st2.seizuresValue = Math.floor((st2.seizuresValue || 0) + seized);
+                            st2.xp = Math.floor((st2.xp || 0) + 12);
+                            setOfficerStats(pol, interaction.user.id, st2);
+                            await pol.save().catch(() => {});
+                            return safe(i.followUp({ content: `🧾 Patrulha encontrou dinheiro sujo com <@${pick.userID}> e apreendeu **${formatMoney(seized)}**.`, ephemeral: true }));
+                        }
 
                         const existing = await client.policeCasedb.findOne({ guildID: interaction.guildId, status: "open", suspectId: pick.userID }).sort({ createdAt: -1 });
                         if (existing) {
@@ -420,23 +537,27 @@ module.exports = {
                             existing.evidence.push({ at: now, kind: "clue", by: interaction.user.id, data: { hint: "movimentação suspeita" } });
                             existing.evidence = existing.evidence.slice(-50);
                             await existing.save().catch(() => {});
-                            return i.reply({ content: `🕵️ Pista encontrada. Caso **${existing.caseId}** agora está em **${existing.progress}%**.`, ephemeral: true });
+                            return safe(i.followUp({ content: `🕵️ Pista encontrada. Caso **${existing.caseId}** agora está em **${existing.progress}%**.`, ephemeral: true }));
                         }
 
                         const caseId = `CASE${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+                        const districtId = pick.lastCrime?.districtId || "central";
                         await client.policeCasedb.create({
                             guildID: interaction.guildId,
                             caseId,
                             createdAt: now,
                             status: "open",
+                            kind: "case",
+                            districtId,
+                            hotUntil: 0,
                             suspectId: pick.userID,
                             assignedTo: interaction.user.id,
                             progress: Math.floor(20 + chance * 30),
                             riskScore: Math.floor(chance * 100),
                             estimatedValue: Math.floor(500 + chance * 1500),
-                            evidence: [{ at: now, kind: "clue", by: interaction.user.id, data: { hint: "relatos e pegadas" } }],
+                            evidence: [{ at: now, kind: "clue", by: interaction.user.id, data: { hint: "relatos e pegadas", districtId } }],
                         });
-                        return i.reply({ content: `🗂️ Novo caso aberto: **${caseId}** (suspeito: <@${pick.userID}>).`, ephemeral: true });
+                        return safe(i.followUp({ content: `🗂️ Novo caso aberto: **${caseId}** (suspeito: <@${pick.userID}>).`, ephemeral: true }));
                     }
 
                     if (action === "missoes") {
@@ -459,22 +580,22 @@ module.exports = {
                             .join("\n")
                             .slice(0, 3900);
                         const e = new Discord.MessageEmbed().setTitle("📌 Missões Policiais").setColor("BLURPLE").setDescription(lines || "Nenhuma missão disponível.");
-                        return i.update({ embeds: [e], components: [row] });
+                        return safe(i.editReply({ embeds: [e], components: [row] }));
                     }
 
                     if (action === "resgatar") {
                         const g = await client.blackMarketGuilddb.getOrCreate(interaction.guildId);
                         const u = await client.blackMarketUserdb.getOrCreate(interaction.guildId, interaction.user.id);
                         syncMissions(g, u);
-                        const id = await promptOneLine(interaction, { prompt: "Cole o ID da missão (da lista).", timeMs: 60000 });
-                        if (!id) return i.reply({ content: "⏳ Tempo esgotado.", ephemeral: true });
+                        const id = await promptOneLine(i, { prompt: "Cole o ID da missão (da lista).", timeMs: 60000 });
+                        if (!id) return safe(i.followUp({ content: "⏳ Tempo esgotado.", ephemeral: true }));
                         const m = (u.missions || []).find((x) => x.missionId === id.trim());
-                        if (!m) return i.reply({ content: "❌ Missão não encontrada.", ephemeral: true });
-                        if (m.claimed) return i.reply({ content: "❌ Missão já resgatada.", ephemeral: true });
+                        if (!m) return safe(i.followUp({ content: "❌ Missão não encontrada.", ephemeral: true }));
+                        if (m.claimed) return safe(i.followUp({ content: "❌ Missão já resgatada.", ephemeral: true }));
                         const def = parseMissionId(m.missionId);
-                        if (!def || def.side !== "police") return i.reply({ content: "❌ Missão inválida.", ephemeral: true });
+                        if (!def || def.side !== "police") return safe(i.followUp({ content: "❌ Missão inválida.", ephemeral: true }));
                         const goal = m.goal || def.goal || 0;
-                        if ((m.progress || 0) < goal) return i.reply({ content: "❌ Missão ainda não concluída.", ephemeral: true });
+                        if ((m.progress || 0) < goal) return safe(i.followUp({ content: "❌ Missão ainda não concluída.", ephemeral: true }));
 
                         const rewards = missionRewards(def);
                         const eco = await client.guildEconomydb.getOrCreate(interaction.guildId);
@@ -486,11 +607,11 @@ module.exports = {
                         if (paid > 0) await creditWallet(client.userdb, interaction.user.id, paid, "police_mission_reward", { guildId: interaction.guildId, missionId: m.missionId }).catch(() => {});
                         m.claimed = true;
                         await u.save().catch(() => {});
-                        return i.reply({ content: `✅ Missão resgatada: **${formatMoney(paid)}**.`, ephemeral: true });
+                        return safe(i.followUp({ content: `✅ Missão resgatada: **${formatMoney(paid)}**.`, ephemeral: true }));
                     }
                 } catch (err) {
                     console.error(err);
-                    i.reply({ content: "Erro no hub da Polícia.", ephemeral: true }).catch(() => {});
+                    i.followUp({ content: "Erro no hub da Polícia.", ephemeral: true }).catch(() => {});
                 }
             });
 

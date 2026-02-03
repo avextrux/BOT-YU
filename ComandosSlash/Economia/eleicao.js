@@ -12,6 +12,15 @@ function isAdminMember(interaction) {
     );
 }
 
+async function safe(promise) {
+    try {
+        return await promise;
+    } catch (e) {
+        if (e?.code === 10062 || e?.code === 40060) return null;
+        throw e;
+    }
+}
+
 module.exports = {
     name: "eleicao",
     description: "Hub de Eleições e Política (Votar, Candidatar, Comprar Voto)",
@@ -69,7 +78,7 @@ module.exports = {
             const collector = msg.createMessageComponentCollector({ componentType: 'SELECT_MENU', idle: 120000 });
 
             collector.on('collect', async i => {
-                if (i.user.id !== interaction.user.id) return i.reply({ content: "Menu pessoal.", ephemeral: true });
+                if (i.user.id !== interaction.user.id) return safe(i.reply({ content: "Menu pessoal.", ephemeral: true }));
                 
                 // Refresh DB
                 const freshEco = await client.guildEconomydb.getOrCreate(interaction.guildId);
@@ -77,11 +86,12 @@ module.exports = {
                 const isActive = freshEco.election.active && Date.now() <= (freshEco.election.endsAt || 0);
 
                 if (i.customId === "eleicao_admin_select") {
+                    await safe(i.deferUpdate());
                     const adminAction = i.values[0];
-                    if (!isAdminMember(interaction)) return i.reply({ content: "❌ Sem permissão.", ephemeral: true });
+                    if (!isAdminMember(interaction)) return safe(i.followUp({ content: "❌ Sem permissão.", ephemeral: true }));
 
                     if (adminAction === "back") {
-                        return i.update({ content: null, embeds: [embed], components: [row] });
+                        return safe(i.editReply({ content: null, embeds: [embed], components: [row] }));
                     }
 
                     if (adminAction === "start") {
@@ -92,123 +102,29 @@ module.exports = {
                         freshEco.election.paidVotes = new Map();
                         freshEco.election.voters = [];
                         await freshEco.save();
-                        return i.reply({ content: "✅ Eleição iniciada (2 semanas).", ephemeral: true });
+                        return safe(i.followUp({ content: "✅ Eleição iniciada (2 semanas).", ephemeral: true }));
                     }
 
                     if (adminAction === "end") {
                         freshEco.election.active = false;
                         await freshEco.save();
-                        return i.reply({ content: "✅ Eleição encerrada manualmente.", ephemeral: true });
+                        return safe(i.followUp({ content: "✅ Eleição encerrada manualmente.", ephemeral: true }));
                     }
 
                     if (adminAction === "toggle_shop") {
                         freshEco.election.voteShop.enabled = !freshEco.election.voteShop.enabled;
                         await freshEco.save();
-                        return i.reply({ content: `✅ Compra de votos: ${freshEco.election.voteShop.enabled ? "ATIVADA" : "DESATIVADA"}.`, ephemeral: true });
+                        return safe(i.followUp({ content: `✅ Compra de votos: ${freshEco.election.voteShop.enabled ? "ATIVADA" : "DESATIVADA"}.`, ephemeral: true }));
                     }
                     return;
                 }
 
                 if (i.customId === "eleicao_hub_menu") {
                     const action = i.values[0];
-
-                    if (action === "status") {
-                        const results = getSortedResults(freshEco.election);
-                        const top = results.slice(0, 10);
-                        const lines = top.length
-                            ? top.map((r, idx) => `**${idx + 1}.** <@${r.id}> — **${r.votes}** votos (${r.paid} pagos)`).join("\n")
-                            : "Nenhum voto ainda.";
-                        
-                        const e = new Discord.MessageEmbed()
-                            .setTitle("📊 Placar da Eleição")
-                            .setColor("BLURPLE")
-                            .setDescription(isActive ? `Termina <t:${Math.floor((freshEco.election.endsAt||0)/1000)}:R>` : "Eleição encerrada.")
-                            .addField("Ranking Top 10", lines);
-                        
-                        return i.update({ embeds: [e], components: [row] });
-                    }
-
-                    if (action === "regras") {
-                        const e = new Discord.MessageEmbed()
-                            .setTitle("📜 Regras Eleitorais")
-                            .setColor("WHITE")
-                            .setDescription(
-                                "1. Cada cidadão tem direito a **1 voto gratuito**.\n" +
-                                "2. É permitido **comprar votos** adicionais para qualquer candidato.\n" +
-                                "3. O vencedor se torna Presidente Econômico e controla impostos.\n" +
-                                "4. Assédio ou spam de campanha resultam em desclassificação."
-                            );
-                        return i.update({ embeds: [e], components: [row] });
-                    }
-
-                    if (action === "candidatar") {
-                        if (!isActive) return i.reply({ content: "❌ Não há eleição ativa.", ephemeral: true });
-                        if (freshEco.election.candidates.includes(i.user.id)) return i.reply({ content: "⚠️ Você já é candidato.", ephemeral: true });
-                        
-                        freshEco.election.candidates.push(i.user.id);
-                        await freshEco.save();
-                        return i.reply({ content: "✅ **Parabéns!** Você agora é um candidato oficial.", ephemeral: true });
-                    }
-
-                    if (action === "sair") {
-                        if (!freshEco.election.candidates.includes(i.user.id)) return i.reply({ content: "❌ Você não é candidato.", ephemeral: true });
-                        
-                        freshEco.election.candidates = freshEco.election.candidates.filter(id => id !== i.user.id);
-                        deleteVote(freshEco.election.votes, i.user.id);
-                        deleteVote(freshEco.election.paidVotes, i.user.id);
-                        await freshEco.save();
-                        return i.reply({ content: "🏳️ Você retirou sua candidatura.", ephemeral: true });
-                    }
-
-                    if (action === "votar") {
-                        if (!isActive) return i.reply({ content: "❌ Não há eleição ativa.", ephemeral: true });
-                        if (freshEco.election.voters.includes(i.user.id)) return i.reply({ content: "❌ Você já gastou seu voto gratuito.", ephemeral: true });
-
-                        const candidates = freshEco.election.candidates || [];
-                        if (candidates.length === 0) return i.reply({ content: "❌ Não há candidatos.", ephemeral: true });
-
-                        const options = await Promise.all(candidates.slice(0, 25).map(async id => {
-                            const user = await client.users.fetch(id).catch(() => null);
-                            return {
-                                label: user ? user.username : `ID: ${id}`,
-                                value: id,
-                                description: "Votar neste candidato",
-                                emoji: "👤"
-                            };
-                        }));
-
-                        const voteRow = new Discord.MessageActionRow().addComponents(
-                            new Discord.MessageSelectMenu()
-                                .setCustomId("eleicao_vote_select")
-                                .setPlaceholder("Escolha seu candidato...")
-                                .addOptions(options)
-                        );
-
-                        const reply = await i.reply({ content: "Selecione o candidato para seu VOTO ÚNICO:", components: [voteRow], ephemeral: true, fetchReply: true });
-                        
-                        const filter = x => x.user.id === i.user.id && x.customId === "eleicao_vote_select";
-                        const collectorVote = reply.createMessageComponentCollector({ max: 1, time: 60000 });
-                        
-                        collectorVote.on('collect', async voteI => {
-                            const targetId = voteI.values[0];
-                            const eco2 = await client.guildEconomydb.getOrCreate(interaction.guildId);
-                            ensureElectionDefaults(eco2);
-                            if (eco2.election.voters.includes(i.user.id)) return voteI.reply({ content: "Já votou.", ephemeral: true });
-                            
-                            eco2.election.voters.push(i.user.id);
-                            const cur = getVoteCount(eco2.election.votes, targetId);
-                            setVoteCount(eco2.election.votes, targetId, cur + 1);
-                            await eco2.save();
-                            
-                            await voteI.update({ content: `✅ Voto computado para <@${targetId}>!`, components: [] });
-                        });
-                        return;
-                    }
-
                     if (action === "comprar") {
-                        if (!isActive) return i.reply({ content: "❌ Não há eleição ativa.", ephemeral: true });
+                        if (!isActive) return safe(i.reply({ content: "❌ Não há eleição ativa.", ephemeral: true }));
                         const shop = freshEco.election.voteShop || {};
-                        if (!shop.enabled) return i.reply({ content: "❌ Compra de votos desativada.", ephemeral: true });
+                        if (!shop.enabled) return safe(i.reply({ content: "❌ Compra de votos desativada.", ephemeral: true }));
 
                         const modal = new Discord.Modal()
                             .setCustomId('eleicao_buy_modal')
@@ -231,12 +147,109 @@ module.exports = {
                         const r2 = new Discord.MessageActionRow().addComponents(inputQty);
                         modal.addComponents(r1, r2);
 
-                        await i.showModal(modal);
+                        await safe(i.showModal(modal));
+                        return;
+                    }
+
+                    await safe(i.deferUpdate());
+
+                    if (action === "status") {
+                        const results = getSortedResults(freshEco.election);
+                        const top = results.slice(0, 10);
+                        const lines = top.length
+                            ? top.map((r, idx) => `**${idx + 1}.** <@${r.id}> — **${r.votes}** votos (${r.paid} pagos)`).join("\n")
+                            : "Nenhum voto ainda.";
+                        
+                        const e = new Discord.MessageEmbed()
+                            .setTitle("📊 Placar da Eleição")
+                            .setColor("BLURPLE")
+                            .setDescription(isActive ? `Termina <t:${Math.floor((freshEco.election.endsAt||0)/1000)}:R>` : "Eleição encerrada.")
+                            .addField("Ranking Top 10", lines);
+                        
+                        return safe(i.editReply({ embeds: [e], components: [row] }));
+                    }
+
+                    if (action === "regras") {
+                        const e = new Discord.MessageEmbed()
+                            .setTitle("📜 Regras Eleitorais")
+                            .setColor("WHITE")
+                            .setDescription(
+                                "1. Cada cidadão tem direito a **1 voto gratuito**.\n" +
+                                "2. É permitido **comprar votos** adicionais para qualquer candidato.\n" +
+                                "3. O vencedor se torna Presidente Econômico e controla impostos.\n" +
+                                "4. Assédio ou spam de campanha resultam em desclassificação."
+                            );
+                        return safe(i.editReply({ embeds: [e], components: [row] }));
+                    }
+
+                    if (action === "candidatar") {
+                        if (!isActive) return safe(i.followUp({ content: "❌ Não há eleição ativa.", ephemeral: true }));
+                        if (freshEco.election.candidates.includes(i.user.id)) return safe(i.followUp({ content: "⚠️ Você já é candidato.", ephemeral: true }));
+                        
+                        freshEco.election.candidates.push(i.user.id);
+                        await freshEco.save();
+                        return safe(i.followUp({ content: "✅ **Parabéns!** Você agora é um candidato oficial.", ephemeral: true }));
+                    }
+
+                    if (action === "sair") {
+                        if (!freshEco.election.candidates.includes(i.user.id)) return safe(i.followUp({ content: "❌ Você não é candidato.", ephemeral: true }));
+                        
+                        freshEco.election.candidates = freshEco.election.candidates.filter(id => id !== i.user.id);
+                        deleteVote(freshEco.election.votes, i.user.id);
+                        deleteVote(freshEco.election.paidVotes, i.user.id);
+                        await freshEco.save();
+                        return safe(i.followUp({ content: "🏳️ Você retirou sua candidatura.", ephemeral: true }));
+                    }
+
+                    if (action === "votar") {
+                        if (!isActive) return safe(i.followUp({ content: "❌ Não há eleição ativa.", ephemeral: true }));
+                        if (freshEco.election.voters.includes(i.user.id)) return safe(i.followUp({ content: "❌ Você já gastou seu voto gratuito.", ephemeral: true }));
+
+                        const candidates = freshEco.election.candidates || [];
+                        if (candidates.length === 0) return safe(i.followUp({ content: "❌ Não há candidatos.", ephemeral: true }));
+
+                        const options = await Promise.all(candidates.slice(0, 25).map(async id => {
+                            const user = await client.users.fetch(id).catch(() => null);
+                            return {
+                                label: user ? user.username : `ID: ${id}`,
+                                value: id,
+                                description: "Votar neste candidato",
+                                emoji: "👤"
+                            };
+                        }));
+
+                        const voteRow = new Discord.MessageActionRow().addComponents(
+                            new Discord.MessageSelectMenu()
+                                .setCustomId("eleicao_vote_select")
+                                .setPlaceholder("Escolha seu candidato...")
+                                .addOptions(options)
+                        );
+
+                        const reply = await safe(i.followUp({ content: "Selecione o candidato para seu VOTO ÚNICO:", components: [voteRow], ephemeral: true, fetchReply: true }));
+                        if (!reply) return;
+                        
+                        const filter = x => x.user.id === i.user.id && x.customId === "eleicao_vote_select";
+                        const collectorVote = reply.createMessageComponentCollector({ max: 1, time: 60000 });
+                        
+                        collectorVote.on('collect', async voteI => {
+                            await safe(voteI.deferUpdate());
+                            const targetId = voteI.values[0];
+                            const eco2 = await client.guildEconomydb.getOrCreate(interaction.guildId);
+                            ensureElectionDefaults(eco2);
+                            if (eco2.election.voters.includes(i.user.id)) return safe(voteI.followUp({ content: "Já votou.", ephemeral: true }));
+                            
+                            eco2.election.voters.push(i.user.id);
+                            const cur = getVoteCount(eco2.election.votes, targetId);
+                            setVoteCount(eco2.election.votes, targetId, cur + 1);
+                            await eco2.save();
+                            
+                            await safe(voteI.editReply({ content: `✅ Voto computado para <@${targetId}>!`, components: [] }));
+                        });
                         return;
                     }
 
                     if (action === "admin_panel") {
-                        if (!isAdminMember(interaction)) return i.reply({ content: "❌ Sem permissão.", ephemeral: true });
+                        if (!isAdminMember(interaction)) return safe(i.followUp({ content: "❌ Sem permissão.", ephemeral: true }));
                         
                         const adminRow = new Discord.MessageActionRow().addComponents(
                             new Discord.MessageSelectMenu()
@@ -250,7 +263,7 @@ module.exports = {
                                 ])
                         );
                         
-                        return i.update({ content: "**Painel Admin**", embeds: [], components: [adminRow] });
+                        return safe(i.editReply({ content: "**Painel Admin**", embeds: [], components: [adminRow] }));
                     }
                 }
             });

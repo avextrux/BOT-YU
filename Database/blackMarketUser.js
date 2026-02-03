@@ -51,6 +51,26 @@ const BlackMarketUserSchema = new Schema(
             blackmarket: { type: Number, default: 0 },
             patrol: { type: Number, default: 0 },
             checkpoint: { type: Number, default: 0 },
+            robbery: { type: Number, default: 0 },
+            trafficking: { type: Number, default: 0 },
+            laundering: { type: Number, default: 0 },
+        },
+
+        lastCrime: {
+            at: { type: Number, default: 0, index: true },
+            districtId: { type: String, default: null, index: true },
+            kind: { type: String, default: null },
+        },
+
+        operation: {
+            active: { type: Boolean, default: false, index: true },
+            kind: { type: String, default: null, index: true },
+            districtId: { type: String, default: null, index: true },
+            caseId: { type: String, default: null, index: true },
+            startedAt: { type: Number, default: 0, index: true },
+            endsAt: { type: Number, default: 0, index: true },
+            dirtyPayout: { type: Number, default: 0 },
+            cleanCost: { type: Number, default: 0 },
         },
 
         antiCheat: {

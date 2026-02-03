@@ -58,6 +58,8 @@ if (!botToken) {
 // Previne que o bot desligue sozinho em caso de erros não tratados
 
 process.on('unhandledRejection', (reason, p) => {
+    const code = reason?.code || reason?.error?.code;
+    if (code === 10062 || code === 40060) return;
     console.error(' [ANTI-CRASH] Unhandled Rejection/Catch');
     console.error(reason, p);
 });

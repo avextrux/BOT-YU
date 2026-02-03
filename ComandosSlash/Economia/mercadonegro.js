@@ -1,7 +1,7 @@
 const Discord = require("discord.js");
 const { getRandomGifUrl } = require("../../Utils/giphy");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
-const { formatMoney, debitWalletIfEnough, creditWallet, errorEmbed } = require("../../Utils/economy");
+const { formatMoney, debitWalletIfEnough, creditWallet, errorEmbed, creditDirtyMoney, debitDirtyMoneyIfEnough } = require("../../Utils/economy");
 const { bumpRate } = require("../../Utils/antiCheat");
 const { DISTRICTS, ITEMS, VENDORS, REP_LEVELS, computeRepLevel, getRepLevelName, ensureVendorState, computeDynamicPrice, computeInterceptChance, addInventory, removeInventory, decayHeat, updateDemandEma } = require("../../Utils/blackMarketEngine");
 const { syncMissions, applyMissionProgress, parseMissionId, missionTitle, missionRewards } = require("../../Utils/blackMarketMissions");
@@ -24,11 +24,20 @@ function parseIntSafe(v) {
     return Number.isFinite(n) ? n : null;
 }
 
-async function promptOneLine(interaction, { prompt, timeMs = 60000 }) {
-    if (!interaction.channel || typeof interaction.channel.awaitMessages !== "function") return null;
-    await interaction.followUp({ content: prompt, ephemeral: true }).catch(() => {});
-    const filter = (m) => m.author?.id === interaction.user.id;
-    const collected = await interaction.channel.awaitMessages({ filter, max: 1, time: timeMs });
+async function safe(promise) {
+    try {
+        return await promise;
+    } catch (e) {
+        if (e?.code === 10062 || e?.code === 40060) return null;
+        throw e;
+    }
+}
+
+async function promptOneLine(interactionLike, { prompt, timeMs = 60000 }) {
+    if (!interactionLike.channel || typeof interactionLike.channel.awaitMessages !== "function") return null;
+    await interactionLike.followUp({ content: prompt, ephemeral: true }).catch(() => {});
+    const filter = (m) => m.author?.id === interactionLike.user.id;
+    const collected = await interactionLike.channel.awaitMessages({ filter, max: 1, time: timeMs });
     const msg = collected.first();
     if (!msg) return null;
     const value = msg.content;
@@ -42,7 +51,11 @@ async function getGuildEvent(client, guildId) {
     if (!g.heat) g.heat = { level: 0, lastUpdateAt: 0 };
     if (!g.patrol) g.patrol = { intensity: 0.35, lastTickAt: 0 };
     if (!g.checkpoints) g.checkpoints = [];
-    if (!g.announce) g.announce = { channelId: null, pingEveryone: false };
+    if (!g.announce) g.announce = { channelId: null, pingEveryone: false, policeRoleId: null, alertPolice: true };
+    if (!g.config.crime) g.config.crime = {};
+    if (!g.config.crime.robbery) g.config.crime.robbery = { enabled: true, durationMs: 90 * 1000, cooldownMs: 8 * 60 * 1000, minDirty: 250, maxDirty: 1800, alertChance: 0.65 };
+    if (!g.config.crime.trafficking) g.config.crime.trafficking = { enabled: true, durationMs: 120 * 1000, cooldownMs: 10 * 60 * 1000, minDirty: 400, maxDirty: 2600, costMin: 200, costMax: 1200, alertChance: 0.75 };
+    if (!g.config.crime.laundering) g.config.crime.laundering = { enabled: true, cooldownMs: 6 * 60 * 1000, feePct: 0.18, riskBase: 0.12 };
     ensureVendorState(g);
     return g;
 }
@@ -53,7 +66,9 @@ async function getUserEvent(client, guildId, userId) {
     if (!u.heat) u.heat = { level: 0, lastUpdateAt: 0 };
     if (!u.inventory) u.inventory = new Map();
     if (!u.stats) u.stats = { criminalProfit: 0, criminalRuns: 0, seizedCount: 0, seizedValue: 0 };
-    if (!u.cooldowns) u.cooldowns = { blackmarket: 0, patrol: 0, checkpoint: 0 };
+    if (!u.cooldowns) u.cooldowns = { blackmarket: 0, patrol: 0, checkpoint: 0, robbery: 0, trafficking: 0, laundering: 0 };
+    if (!u.lastCrime) u.lastCrime = { at: 0, districtId: null, kind: null };
+    if (!u.operation) u.operation = { active: false, kind: null, districtId: null, caseId: null, startedAt: 0, endsAt: 0, dirtyPayout: 0, cleanCost: 0 };
     if (!u.antiCheat) u.antiCheat = { strikes: 0, lockedUntil: 0, windowStartAt: 0, windowCount: 0 };
     return u;
 }
@@ -87,6 +102,9 @@ async function createPoliceCaseIfPossible(client, { guildId, suspectId, district
             caseId,
             createdAt: Date.now(),
             status: "open",
+            kind: "case",
+            districtId: districtId || null,
+            hotUntil: 0,
             suspectId,
             progress: Math.floor(20 + chance * 40),
             riskScore: Math.floor(chance * 100),
@@ -101,6 +119,48 @@ async function createPoliceCaseIfPossible(client, { guildId, suspectId, district
             ],
         })
         .catch(() => {});
+}
+
+async function createHotPoliceCase(client, { guildId, suspectId, kind, districtId, hotUntil, estimatedValue, data }) {
+    if (!client.policeCasedb) return null;
+    for (let tries = 0; tries < 4; tries++) {
+        const caseId = `CASE${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+        try {
+            await client.policeCasedb.create({
+                guildID: guildId,
+                caseId,
+                createdAt: Date.now(),
+                status: "open",
+                kind,
+                districtId: districtId || null,
+                hotUntil: Math.max(0, Number(hotUntil || 0)),
+                suspectId,
+                progress: 0,
+                riskScore: 0,
+                estimatedValue: Math.floor(estimatedValue || 0),
+                evidence: [
+                    { at: Date.now(), kind: "alert", by: null, data: data || {} },
+                ],
+            });
+            return caseId;
+        } catch (e) {
+            if (String(e?.code) === "11000") continue;
+            return null;
+        }
+    }
+    return null;
+}
+
+async function trySendAlert(client, guildDoc, payload) {
+    const channelId = guildDoc?.announce?.channelId || null;
+    if (!channelId) return false;
+    const content = guildDoc.announce?.alertPolice
+        ? (guildDoc.announce?.policeRoleId ? `<@&${guildDoc.announce.policeRoleId}>` : (guildDoc.announce?.pingEveryone ? "@everyone" : null))
+        : null;
+    const channel = await client.channels.fetch(channelId).catch(() => null);
+    if (!channel || typeof channel.send !== "function") return false;
+    await channel.send({ ...(payload || {}), ...(content ? { content } : {}) }).catch(() => {});
+    return true;
 }
 
 function rollOutcome() {
@@ -124,6 +184,9 @@ module.exports = {
         "Vender item — vender mercadoria ilícita",
         "Inventário — seus itens ilícitos",
         "Comprar reputação — dinheiro -> reputação do submundo",
+        "Assalto — ganhar dinheiro sujo (alerta policial)",
+        "Tráfico — rota de entrega (alerta policial)",
+        "Lavagem (fachada) — igreja/ong/oficina (dinheiro sujo -> limpo)",
         "Missões — diárias e semanais",
         "Resgatar missão — pegar recompensa",
         "Ranking — lucro do submundo",
@@ -151,6 +214,9 @@ module.exports = {
                     { label: "Vender item", value: "vender_item", description: "Vender mercadoria ilícita" },
                     { label: "Inventário", value: "inventario", description: "Seus itens ilícitos" },
                     { label: "Comprar reputação", value: "comprar_rep", description: "Dinheiro -> reputação" },
+                    { label: "Assalto", value: "assalto", description: "Ganhar dinheiro sujo (risco)" },
+                    { label: "Tráfico", value: "trafico", description: "Entrega ilícita (risco)" },
+                    { label: "Lavagem (fachada)", value: "lavar", description: "Converter dinheiro sujo" },
                     { label: "Missões", value: "missoes", description: "Diárias e semanais" },
                     { label: "Resgatar missão", value: "resgatar", description: "Pegar recompensa" },
                     { label: "Ranking", value: "ranking", description: "Lucro do submundo" },
@@ -175,11 +241,12 @@ module.exports = {
             const collector = msg.createMessageComponentCollector({ componentType: "SELECT_MENU", idle: 120000 });
             collector.on("collect", async (i) => {
                 try {
-                    if (i.user.id !== interaction.user.id) return i.reply({ content: "❌ Esse menu é do autor do comando.", ephemeral: true });
+                    if (i.user.id !== interaction.user.id) return safe(i.reply({ content: "❌ Esse menu é do autor do comando.", ephemeral: true }));
                     const action = i.values[0];
+                    await safe(i.deferUpdate());
 
                     const gate = await ensureEconomyAllowed(client, interaction, interaction.user.id);
-                    if (!gate.ok) return i.reply({ embeds: [gate.embed], ephemeral: true });
+                    if (!gate.ok) return safe(i.followUp({ embeds: [gate.embed], ephemeral: true }));
 
                     const g = await getGuildEvent(client, interaction.guildId);
                     const u = await getUserEvent(client, interaction.guildId, interaction.user.id);
@@ -201,11 +268,11 @@ module.exports = {
                     if (!mainUser.economia.restrictions) mainUser.economia.restrictions = { bannedUntil: 0, blackMarketBannedUntil: 0, casinoBannedUntil: 0 };
                     const bmBan = Number(mainUser.economia.restrictions.blackMarketBannedUntil || 0);
                     const casinoBan = Number(mainUser.economia.restrictions.casinoBannedUntil || 0);
-                    if (bmBan && now < bmBan && ["comprar_item", "vender_item", "comprar_rep", "resgatar"].includes(action)) {
-                        return i.reply({ content: `⛔ Você está banido do Mercado Negro até <t:${Math.floor(bmBan / 1000)}:R>.`, ephemeral: true });
+                    if (bmBan && now < bmBan && ["comprar_item", "vender_item", "comprar_rep", "assalto", "trafico", "lavar", "resgatar"].includes(action)) {
+                        return safe(i.followUp({ content: `⛔ Você está banido do Mercado Negro até <t:${Math.floor(bmBan / 1000)}:R>.`, ephemeral: true }));
                     }
                     if (casinoBan && now < casinoBan && action === "caixa") {
-                        return i.reply({ content: `⛔ Você está banido do Cassino até <t:${Math.floor(casinoBan / 1000)}:R>.`, ephemeral: true });
+                        return safe(i.followUp({ content: `⛔ Você está banido do Cassino até <t:${Math.floor(casinoBan / 1000)}:R>.`, ephemeral: true }));
                     }
 
                     if (action === "status") {
@@ -213,6 +280,11 @@ module.exports = {
                         const patrolPct = Math.floor((g.patrol?.intensity || 0.35) * 100);
                         const discountUntil = Number(g.config.discountUntil || 0);
                         const discText = discountUntil > now ? `✅ Leilão ativo até <t:${Math.floor(discountUntil / 1000)}:R> (x${Number(g.config.discountMultiplier || 1).toFixed(2)})` : "—";
+                        const dirty = Math.max(0, Math.floor(mainUser.economia?.dirtyMoney || 0));
+                        const op = u.operation || {};
+                        const opText = op.active
+                            ? `**${String(op.kind || "operação")}** em **${pickDistrict(op.districtId).name}** • termina <t:${Math.floor((op.endsAt || 0) / 1000)}:R>`
+                            : "—";
 
                         const e = new Discord.MessageEmbed()
                             .setTitle("💣 Status do Submundo")
@@ -221,8 +293,10 @@ module.exports = {
                             .addField("Reputação", `**${repNow.name}** (${repNow.score} pts)`, true)
                             .addField("Heat", `**${Math.floor(u.heat.level || 0)}**`, true)
                             .addField("Patrulha (servidor)", `**${patrolPct}%**`, true)
+                            .addField("Dinheiro sujo", formatMoney(dirty), true)
+                            .addField("Operação", opText, false)
                             .addField("Evento relâmpago", discText, false);
-                        return i.update({ embeds: [e], components: [row] });
+                        return safe(i.editReply({ embeds: [e], components: [row] }));
                     }
 
                     if (action === "vendedores") {
@@ -252,7 +326,7 @@ module.exports = {
                             embed.addField(`${name} (${vd.vendorId})`, `Reabastece: ${restock}\n${lines.join("\n").slice(0, 900)}`, false);
                         }
 
-                        return i.update({ embeds: [embed], components: [row] });
+                        return safe(i.editReply({ embeds: [embed], components: [row] }));
                     }
 
                     if (action === "inventario") {
@@ -271,8 +345,9 @@ module.exports = {
                             .setColor("DARK_BUT_NOT_BLACK")
                             .setDescription(lines.length ? lines.join("\n") : "Você não tem itens ilícitos.")
                             .addField("Reputação", `**${repNow.name}** (${repNow.score} pts)`, true)
-                            .addField("Heat", `**${Math.floor(u.heat.level || 0)}**`, true);
-                        return i.update({ embeds: [e], components: [row] });
+                            .addField("Heat", `**${Math.floor(u.heat.level || 0)}**`, true)
+                            .addField("Dinheiro sujo", formatMoney(Math.max(0, Math.floor(mainUser.economia?.dirtyMoney || 0))), true);
+                        return safe(i.editReply({ embeds: [e], components: [row] }));
                     }
 
                     if (action === "comprar_rep") {
@@ -281,7 +356,7 @@ module.exports = {
                         if (!u.stats) u.stats = {};
 
                         const shop = g.config.repShop;
-                        if (!shop.enabled) return i.reply({ content: "❌ Compra de reputação está desativada.", ephemeral: true });
+                        if (!shop.enabled) return safe(i.followUp({ content: "❌ Compra de reputação está desativada.", ephemeral: true }));
 
                         const now2 = Date.now();
                         if (!u.stats.repBoughtResetAt || now2 >= u.stats.repBoughtResetAt) {
@@ -292,18 +367,18 @@ module.exports = {
                         const maxPerDay = Math.max(0, Math.floor(shop.maxPerDay || 0));
                         const remaining = Math.max(0, maxPerDay - bought);
                         if (remaining <= 0) {
-                            return i.reply({ content: `⛔ Limite diário atingido. Volta em <t:${Math.floor((u.stats.repBoughtResetAt || 0) / 1000)}:R>.`, ephemeral: true });
+                            return safe(i.followUp({ content: `⛔ Limite diário atingido. Volta em <t:${Math.floor((u.stats.repBoughtResetAt || 0) / 1000)}:R>.`, ephemeral: true }));
                         }
 
-                        const raw = await promptOneLine(interaction, { prompt: `Quantos pontos de reputação comprar? (1-${remaining})`, timeMs: 60000 });
-                        if (!raw) return i.reply({ content: "⏳ Tempo esgotado.", ephemeral: true });
+                        const raw = await promptOneLine(i, { prompt: `Quantos pontos de reputação comprar? (1-${remaining})`, timeMs: 60000 });
+                        if (!raw) return safe(i.followUp({ content: "⏳ Tempo esgotado.", ephemeral: true }));
                         const points = Math.max(1, Math.floor(Number(String(raw).replace(/\./g, "").replace(/,/g, ".")) || 0));
-                        if (!Number.isFinite(points) || points <= 0 || points > remaining) return i.reply({ content: "❌ Quantidade inválida.", ephemeral: true });
+                        if (!Number.isFinite(points) || points <= 0 || points > remaining) return safe(i.followUp({ content: "❌ Quantidade inválida.", ephemeral: true }));
 
                         const pricePerRep = Math.max(1, Math.floor(shop.pricePerRep || 120));
                         const cost = Math.floor(points * pricePerRep);
                         const paid = await debitWalletIfEnough(client.userdb, interaction.user.id, cost, "blackmarket_rep_buy", { guildId: interaction.guildId, points });
-                        if (!paid) return i.reply({ content: `❌ Você precisa de ${formatMoney(cost)} na carteira.`, ephemeral: true });
+                        if (!paid) return safe(i.followUp({ content: `❌ Você precisa de ${formatMoney(cost)} na carteira.`, ephemeral: true }));
 
                         ensureRep(u);
                         u.reputation.score = Math.floor((u.reputation.score || 0) + points);
@@ -313,7 +388,233 @@ module.exports = {
                         await u.save().catch(() => {});
                         await g.save().catch(() => {});
 
-                        return i.reply({ content: `✅ Você comprou **${points} rep** por ${formatMoney(cost)}.`, ephemeral: true });
+                        return safe(i.followUp({ content: `✅ Você comprou **${points} rep** por ${formatMoney(cost)}.`, ephemeral: true }));
+                    }
+
+                    if (action === "assalto") {
+                        const cfg = g.config.crime?.robbery || {};
+                        if (!cfg.enabled) return safe(i.followUp({ content: "❌ Assaltos estão desativados.", ephemeral: true }));
+
+                        if (u.operation?.active) {
+                            if (u.operation.kind === "robbery") {
+                                const endsAt = Number(u.operation.endsAt || 0);
+                                if (now < endsAt) {
+                                    return safe(i.followUp({ content: `⏳ Assalto em andamento. Termina <t:${Math.floor(endsAt / 1000)}:R>.`, ephemeral: true }));
+                                }
+
+                                let blocked = false;
+                                if (u.operation.caseId && client.policeCasedb) {
+                                    const c = await client.policeCasedb.findOne({ guildID: interaction.guildId, caseId: u.operation.caseId }).lean();
+                                    if (c && c.status !== "open") blocked = true;
+                                }
+
+                                if (blocked) {
+                                    u.operation = { active: false, kind: null, districtId: null, caseId: null, startedAt: 0, endsAt: 0, dirtyPayout: 0, cleanCost: 0 };
+                                    await u.save().catch(() => {});
+                                    return safe(i.followUp({ content: "🚨 Assalto interrompido pela polícia. Você fugiu de mãos vazias.", ephemeral: true }));
+                                }
+
+                                const payout = Math.max(0, Math.floor(u.operation.dirtyPayout || 0));
+                                if (payout > 0) await creditDirtyMoney(client.userdb, interaction.user.id, payout, "robbery_payout", { guildId: interaction.guildId, districtId: u.operation.districtId, caseId: u.operation.caseId }).catch(() => {});
+                                u.stats.criminalProfit = Math.floor((u.stats.criminalProfit || 0) + payout);
+                                u.stats.criminalRuns = Math.floor((u.stats.criminalRuns || 0) + 1);
+                                u.heat.level = Math.min(100, Math.floor((u.heat.level || 0) + 8));
+                                u.operation = { active: false, kind: null, districtId: null, caseId: null, startedAt: 0, endsAt: 0, dirtyPayout: 0, cleanCost: 0 };
+                                await u.save().catch(() => {});
+                                return safe(i.followUp({ content: `✅ Assalto concluído. Você ganhou **${formatMoney(payout)}** de dinheiro sujo.`, ephemeral: true }));
+                            }
+
+                            return safe(i.followUp({ content: "⚠️ Você já está em outra operação. Finalize primeiro.", ephemeral: true }));
+                        }
+
+                        const cd = Number(u.cooldowns?.robbery || 0);
+                        if (now < cd) return safe(i.followUp({ content: `⏳ Assalto disponível <t:${Math.floor(cd / 1000)}:R>.`, ephemeral: true }));
+
+                        const raw = await promptOneLine(i, { prompt: `Digite: \`distrito alvo\`\n\nAlvos: LOJA | ATM | CASA | CAMINHAO\n\nDistritos:\n${districtsText()}\n\nEx: \`central loja\``, timeMs: 60000 });
+                        if (!raw) return safe(i.followUp({ content: "⏳ Tempo esgotado.", ephemeral: true }));
+                        const [districtRaw, targetRaw] = raw.trim().split(/\s+/);
+                        const district = pickDistrict((districtRaw || "").toLowerCase());
+                        const target = String(targetRaw || "loja").toLowerCase();
+
+                        const durationMs = Math.max(20_000, Math.floor(Number(cfg.durationMs || 90_000)));
+                        const minDirty = Math.max(50, Math.floor(Number(cfg.minDirty || 250)));
+                        const maxDirty = Math.max(minDirty, Math.floor(Number(cfg.maxDirty || 1800)));
+                        const payout = Math.floor(minDirty + Math.random() * (maxDirty - minDirty + 1));
+                        const hotUntil = now + durationMs;
+
+                        const willAlert = Math.random() < Math.max(0, Math.min(1, Number(cfg.alertChance ?? 0.65)));
+                        const caseId = willAlert
+                            ? await createHotPoliceCase(client, {
+                                  guildId: interaction.guildId,
+                                  suspectId: interaction.user.id,
+                                  kind: "robbery",
+                                  districtId: district.id,
+                                  hotUntil,
+                                  estimatedValue: payout,
+                                  data: { districtId: district.id, target, payout },
+                              })
+                            : null;
+
+                        if (caseId) {
+                            const embedAlert = new Discord.MessageEmbed()
+                                .setTitle("🚨 ALERTA: Assalto em andamento")
+                                .setColor("RED")
+                                .setDescription(`Distrito: **${district.name}**\nCaso: **${caseId}**\nTempo: <t:${Math.floor(hotUntil / 1000)}:R>`);
+                            await trySendAlert(client, g, { embeds: [embedAlert] });
+                        }
+
+                        u.cooldowns.robbery = now + Math.max(0, Math.floor(Number(cfg.cooldownMs || 0)));
+                        u.lastCrime = { at: now, districtId: district.id, kind: "robbery" };
+                        u.operation = { active: true, kind: "robbery", districtId: district.id, caseId: caseId || null, startedAt: now, endsAt: hotUntil, dirtyPayout: payout, cleanCost: 0 };
+                        await u.save().catch(() => {});
+                        return safe(i.followUp({ content: `🚨 Assalto iniciado em **${district.name}**. Finaliza <t:${Math.floor(hotUntil / 1000)}:R>.${caseId ? ` (Caso: **${caseId}**)` : ""}`, ephemeral: true }));
+                    }
+
+                    if (action === "trafico") {
+                        const cfg = g.config.crime?.trafficking || {};
+                        if (!cfg.enabled) return safe(i.followUp({ content: "❌ Tráfico está desativado.", ephemeral: true }));
+
+                        if (u.operation?.active) {
+                            if (u.operation.kind === "trafficking") {
+                                const endsAt = Number(u.operation.endsAt || 0);
+                                if (now < endsAt) {
+                                    return safe(i.followUp({ content: `⏳ Tráfico em andamento. Termina <t:${Math.floor(endsAt / 1000)}:R>.`, ephemeral: true }));
+                                }
+
+                                let blocked = false;
+                                if (u.operation.caseId && client.policeCasedb) {
+                                    const c = await client.policeCasedb.findOne({ guildID: interaction.guildId, caseId: u.operation.caseId }).lean();
+                                    if (c && c.status !== "open") blocked = true;
+                                }
+
+                                if (blocked) {
+                                    u.operation = { active: false, kind: null, districtId: null, caseId: null, startedAt: 0, endsAt: 0, dirtyPayout: 0, cleanCost: 0 };
+                                    await u.save().catch(() => {});
+                                    return safe(i.followUp({ content: "🚨 A rota foi interrompida pela polícia. Carga perdida.", ephemeral: true }));
+                                }
+
+                                const payout = Math.max(0, Math.floor(u.operation.dirtyPayout || 0));
+                                if (payout > 0) await creditDirtyMoney(client.userdb, interaction.user.id, payout, "trafficking_payout", { guildId: interaction.guildId, districtId: u.operation.districtId, caseId: u.operation.caseId }).catch(() => {});
+                                u.stats.criminalProfit = Math.floor((u.stats.criminalProfit || 0) + payout);
+                                u.stats.criminalRuns = Math.floor((u.stats.criminalRuns || 0) + 1);
+                                u.heat.level = Math.min(100, Math.floor((u.heat.level || 0) + 10));
+                                u.operation = { active: false, kind: null, districtId: null, caseId: null, startedAt: 0, endsAt: 0, dirtyPayout: 0, cleanCost: 0 };
+                                await u.save().catch(() => {});
+                                return safe(i.followUp({ content: `✅ Tráfico concluído. Você ganhou **${formatMoney(payout)}** de dinheiro sujo.`, ephemeral: true }));
+                            }
+                            return safe(i.followUp({ content: "⚠️ Você já está em outra operação. Finalize primeiro.", ephemeral: true }));
+                        }
+
+                        const cd = Number(u.cooldowns?.trafficking || 0);
+                        if (now < cd) return safe(i.followUp({ content: `⏳ Tráfico disponível <t:${Math.floor(cd / 1000)}:R>.`, ephemeral: true }));
+
+                        const raw = await promptOneLine(i, { prompt: `Digite: \`distrito carga\`\n\nCargas: DROGAS | ARMAS | CIGARROS | ORO\n\nDistritos:\n${districtsText()}\n\nEx: \`porto drogas\``, timeMs: 60000 });
+                        if (!raw) return safe(i.followUp({ content: "⏳ Tempo esgotado.", ephemeral: true }));
+                        const [districtRaw, cargoRaw] = raw.trim().split(/\s+/);
+                        const district = pickDistrict((districtRaw || "").toLowerCase());
+                        const cargo = String(cargoRaw || "drogas").toLowerCase();
+
+                        const durationMs = Math.max(30_000, Math.floor(Number(cfg.durationMs || 120_000)));
+                        const minDirty = Math.max(80, Math.floor(Number(cfg.minDirty || 400)));
+                        const maxDirty = Math.max(minDirty, Math.floor(Number(cfg.maxDirty || 2600)));
+                        const costMin = Math.max(0, Math.floor(Number(cfg.costMin || 200)));
+                        const costMax = Math.max(costMin, Math.floor(Number(cfg.costMax || 1200)));
+                        const cost = Math.floor(costMin + Math.random() * (costMax - costMin + 1));
+                        const payout = Math.floor(minDirty + Math.random() * (maxDirty - minDirty + 1));
+                        const hotUntil = now + durationMs;
+
+                        if (cost > 0) {
+                            const paid = await debitWalletIfEnough(client.userdb, interaction.user.id, cost, "trafficking_buyin", { guildId: interaction.guildId, cargo, districtId: district.id });
+                            if (!paid) return safe(i.followUp({ content: `❌ Você precisa de ${formatMoney(cost)} na carteira para iniciar.`, ephemeral: true }));
+                        }
+
+                        const willAlert = Math.random() < Math.max(0, Math.min(1, Number(cfg.alertChance ?? 0.75)));
+                        const caseId = willAlert
+                            ? await createHotPoliceCase(client, {
+                                  guildId: interaction.guildId,
+                                  suspectId: interaction.user.id,
+                                  kind: "trafficking",
+                                  districtId: district.id,
+                                  hotUntil,
+                                  estimatedValue: payout,
+                                  data: { districtId: district.id, cargo, payout },
+                              })
+                            : null;
+
+                        if (caseId) {
+                            const embedAlert = new Discord.MessageEmbed()
+                                .setTitle("🚨 ALERTA: Tráfico em andamento")
+                                .setColor("ORANGE")
+                                .setDescription(`Distrito: **${district.name}**\nCaso: **${caseId}**\nTempo: <t:${Math.floor(hotUntil / 1000)}:R>`);
+                            await trySendAlert(client, g, { embeds: [embedAlert] });
+                        }
+
+                        u.cooldowns.trafficking = now + Math.max(0, Math.floor(Number(cfg.cooldownMs || 0)));
+                        u.lastCrime = { at: now, districtId: district.id, kind: "trafficking" };
+                        u.operation = { active: true, kind: "trafficking", districtId: district.id, caseId: caseId || null, startedAt: now, endsAt: hotUntil, dirtyPayout: payout, cleanCost: cost };
+                        await u.save().catch(() => {});
+                        return safe(i.followUp({ content: `📦 Rota iniciada em **${district.name}** (carga: **${cargo}**). Finaliza <t:${Math.floor(hotUntil / 1000)}:R>.${caseId ? ` (Caso: **${caseId}**)` : ""}`, ephemeral: true }));
+                    }
+
+                    if (action === "lavar") {
+                        const cfg = g.config.crime?.laundering || {};
+                        if (!cfg.enabled) return safe(i.followUp({ content: "❌ Lavagem está desativada.", ephemeral: true }));
+
+                        const cd = Number(u.cooldowns?.laundering || 0);
+                        if (now < cd) return safe(i.followUp({ content: `⏳ Lavagem disponível <t:${Math.floor(cd / 1000)}:R>.`, ephemeral: true }));
+
+                        const raw = await promptOneLine(i, { prompt: "Digite: `fachada valor`\n\nFachadas: IGREJA | ONG | OFICINA | LOJA | BARBEARIA\n\nEx: `igreja 5000`", timeMs: 60000 });
+                        if (!raw) return safe(i.followUp({ content: "⏳ Tempo esgotado.", ephemeral: true }));
+                        const parts = raw.trim().split(/\s+/);
+                        const front = String(parts[0] || "").toLowerCase();
+                        const amount = Math.max(1, Math.floor(Number(String(parts[1] || "").replace(/\./g, "").replace(/,/g, ".")) || 0));
+                        if (!front || !Number.isFinite(amount) || amount <= 0) return safe(i.followUp({ content: "❌ Formato inválido.", ephemeral: true }));
+
+                        const dirtyBal = Math.max(0, Math.floor(mainUser.economia?.dirtyMoney || 0));
+                        if (dirtyBal < amount) return safe(i.followUp({ content: `❌ Você tem apenas ${formatMoney(dirtyBal)} de dinheiro sujo.`, ephemeral: true }));
+
+                        const feePct = Math.max(0, Math.min(0.9, Number(cfg.feePct ?? 0.18)));
+                        const clean = Math.max(0, Math.floor(amount * (1 - feePct)));
+                        const patrol = Math.max(0, Math.min(1, Number(g.patrol?.intensity || 0)));
+                        const heat = Math.max(0, Math.min(100, Math.floor(u.heat.level || 0)));
+                        const risk = Math.max(0, Math.min(0.95, Number(cfg.riskBase ?? 0.12) + patrol * 0.45 + heat / 220));
+
+                        u.cooldowns.laundering = now + Math.max(0, Math.floor(Number(cfg.cooldownMs || 0)));
+
+                        if (Math.random() < risk) {
+                            await debitDirtyMoneyIfEnough(client.userdb, interaction.user.id, amount, "laundering_seized", { guildId: interaction.guildId, front }).catch(() => {});
+                            const mins = 15;
+                            const until = now + mins * 60 * 1000;
+                            await client.userdb.updateOne(
+                                { userID: interaction.user.id },
+                                { $set: { "economia.restrictions.blackMarketBannedUntil": Math.max(Number(mainUser.economia?.restrictions?.blackMarketBannedUntil || 0), until) } }
+                            ).catch(() => {});
+                            const caseId = await createHotPoliceCase(client, {
+                                guildId: interaction.guildId,
+                                suspectId: interaction.user.id,
+                                kind: "laundering",
+                                districtId: u.lastCrime?.districtId || null,
+                                hotUntil: now + 60 * 1000,
+                                estimatedValue: amount,
+                                data: { front, amount },
+                            });
+                            if (caseId) {
+                                const embedAlert = new Discord.MessageEmbed()
+                                    .setTitle("🚨 ALERTA: Lavagem suspeita")
+                                    .setColor("DARK_RED")
+                                    .setDescription(`Caso: **${caseId}**\nValor: **${formatMoney(amount)}**\nTempo: 1 minuto`);
+                                await trySendAlert(client, g, { embeds: [embedAlert] });
+                            }
+                            await u.save().catch(() => {});
+                            return safe(i.followUp({ content: `🚔 Lavagem descoberta. Você perdeu **${formatMoney(amount)}** e levou **ban do Submundo** por 15 min.`, ephemeral: true }));
+                        }
+
+                        const deb = await debitDirtyMoneyIfEnough(client.userdb, interaction.user.id, amount, "laundering_convert", { guildId: interaction.guildId, front });
+                        if (!deb) return safe(i.followUp({ content: "❌ Não consegui debitar o dinheiro sujo agora. Tente novamente.", ephemeral: true }));
+                        if (clean > 0) await creditWallet(client.userdb, interaction.user.id, clean, "laundering_clean", { guildId: interaction.guildId, front, amount }).catch(() => {});
+                        u.heat.level = Math.max(0, Math.floor((u.heat.level || 0) - 6));
+                        await u.save().catch(() => {});
+                        return safe(i.followUp({ content: `✅ Lavagem concluída via **${front}**. Recebido limpo: **${formatMoney(clean)}** (taxa ${(feePct * 100).toFixed(0)}%).`, ephemeral: true }));
                     }
 
                     if (action === "ranking") {
@@ -326,7 +627,7 @@ module.exports = {
                             ? top.map((uu, idx) => `**${idx + 1}.** <@${uu.userID}> — ${formatMoney(uu.stats?.criminalProfit || 0)} lucro • ${uu.stats?.criminalRuns || 0} runs`).join("\n")
                             : "Sem dados ainda.";
                         const e = new Discord.MessageEmbed().setTitle("🏴 Ranking do Submundo").setColor("DARK_BUT_NOT_BLACK").setDescription(lines);
-                        return i.update({ embeds: [e], components: [row] });
+                        return safe(i.editReply({ embeds: [e], components: [row] }));
                     }
 
                     if (action === "missoes") {
@@ -349,19 +650,19 @@ module.exports = {
                             .setColor("GOLD")
                             .setDescription(lines || "Nenhuma missão disponível.")
                             .setFooter({ text: "Use “Resgatar missão” e cole o ID da missão" });
-                        return i.update({ embeds: [e], components: [row] });
+                        return safe(i.editReply({ embeds: [e], components: [row] }));
                     }
 
                     if (action === "resgatar") {
-                        const id = await promptOneLine(interaction, { prompt: "Cole o ID da missão (exatamente como aparece na lista).", timeMs: 60000 });
-                        if (!id) return i.reply({ content: "⏳ Tempo esgotado.", ephemeral: true });
+                        const id = await promptOneLine(i, { prompt: "Cole o ID da missão (exatamente como aparece na lista).", timeMs: 60000 });
+                        if (!id) return safe(i.followUp({ content: "⏳ Tempo esgotado.", ephemeral: true }));
                         const m = (u.missions || []).find((x) => x.missionId === id.trim());
-                        if (!m) return i.reply({ content: "❌ Missão não encontrada.", ephemeral: true });
-                        if (m.claimed) return i.reply({ content: "❌ Essa missão já foi resgatada.", ephemeral: true });
+                        if (!m) return safe(i.followUp({ content: "❌ Missão não encontrada.", ephemeral: true }));
+                        if (m.claimed) return safe(i.followUp({ content: "❌ Essa missão já foi resgatada.", ephemeral: true }));
                         const def = parseMissionId(m.missionId);
-                        if (!def) return i.reply({ content: "❌ Missão inválida.", ephemeral: true });
+                        if (!def) return safe(i.followUp({ content: "❌ Missão inválida.", ephemeral: true }));
                         const goal = m.goal || def.goal || 0;
-                        if ((m.progress || 0) < goal) return i.reply({ content: "❌ Missão ainda não concluída.", ephemeral: true });
+                        if ((m.progress || 0) < goal) return safe(i.followUp({ content: "❌ Missão ainda não concluída.", ephemeral: true }));
 
                         const rewards = missionRewards(def);
                         await creditWallet(client.userdb, interaction.user.id, rewards.money, "mission_reward", { guildId: interaction.guildId, missionId: m.missionId }).catch(() => {});
@@ -371,65 +672,65 @@ module.exports = {
                         }
                         m.claimed = true;
                         await u.save().catch(() => {});
-                        return i.reply({ content: `✅ Missão resgatada: **${formatMoney(rewards.money)}**${rewards.rep ? ` +${rewards.rep} rep` : ""}.`, ephemeral: true });
+                        return safe(i.followUp({ content: `✅ Missão resgatada: **${formatMoney(rewards.money)}**${rewards.rep ? ` +${rewards.rep} rep` : ""}.`, ephemeral: true }));
                     }
 
                     if (action === "toggle") {
-                        if (!isAdmin(interaction)) return i.reply({ content: "❌ Apenas admin.", ephemeral: true });
+                        if (!isAdmin(interaction)) return safe(i.followUp({ content: "❌ Apenas admin.", ephemeral: true }));
                         g.active = !g.active;
                         ensureVendorState(g);
                         if (!g.config.dailyResetAt) g.config.dailyResetAt = Date.now() + 24 * 60 * 60 * 1000;
                         if (!g.config.weeklyResetAt) g.config.weeklyResetAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
                         await g.save().catch(() => {});
-                        return i.reply({ content: g.active ? "✅ Evento do Mercado Negro ativado." : "✅ Evento do Mercado Negro desativado.", ephemeral: true });
+                        return safe(i.followUp({ content: g.active ? "✅ Evento do Mercado Negro ativado." : "✅ Evento do Mercado Negro desativado.", ephemeral: true }));
                     }
 
                     if (action === "config") {
-                        if (!isAdmin(interaction)) return i.reply({ content: "❌ Apenas admin.", ephemeral: true });
-                        const raw = await promptOneLine(interaction, { prompt: "Digite: `#canal ping` (ping = on/off). Exemplo: `#anuncios-evento off`", timeMs: 60000 });
-                        if (!raw) return i.reply({ content: "⏳ Tempo esgotado.", ephemeral: true });
+                        if (!isAdmin(interaction)) return safe(i.followUp({ content: "❌ Apenas admin.", ephemeral: true }));
+                        const raw = await promptOneLine(i, { prompt: "Digite: `#canal ping` (ping = on/off). Exemplo: `#anuncios-evento off`", timeMs: 60000 });
+                        if (!raw) return safe(i.followUp({ content: "⏳ Tempo esgotado.", ephemeral: true }));
                         const parts = raw.trim().split(/\s+/);
                         const channelMention = parts[0] || "";
                         const pingRaw = (parts[1] || "off").toLowerCase();
                         const m = channelMention.match(/^<#(\d+)>$/);
-                        if (!m) return i.reply({ content: "❌ Canal inválido. Use #canal.", ephemeral: true });
+                        if (!m) return safe(i.followUp({ content: "❌ Canal inválido. Use #canal.", ephemeral: true }));
                         g.announce.channelId = m[1];
                         g.announce.pingEveryone = ["on", "sim", "true", "1"].includes(pingRaw);
                         await g.save().catch(() => {});
-                        return i.reply({ content: `✅ Anúncios configurados: <#${g.announce.channelId}>${g.announce.pingEveryone ? " com @everyone" : ""}.`, ephemeral: true });
+                        return safe(i.followUp({ content: `✅ Anúncios configurados: <#${g.announce.channelId}>${g.announce.pingEveryone ? " com @everyone" : ""}.`, ephemeral: true }));
                     }
 
                     if (!g.active && ["comprar_item", "vender_item", "caixa"].includes(action)) {
-                        return i.reply({ content: "⚠️ O evento está desativado no servidor.", ephemeral: true });
+                        return safe(i.followUp({ content: "⚠️ O evento está desativado no servidor.", ephemeral: true }));
                     }
 
                     if ((u.antiCheat?.lockedUntil || 0) > now) {
-                        return i.reply({ content: `⛔ Rate limit: tente novamente <t:${Math.floor((u.antiCheat.lockedUntil || 0) / 1000)}:R>.`, ephemeral: true });
+                        return safe(i.followUp({ content: `⛔ Rate limit: tente novamente <t:${Math.floor((u.antiCheat.lockedUntil || 0) / 1000)}:R>.`, ephemeral: true }));
                     }
 
                     if (action === "comprar_item") {
                         const rate = bumpRate(u, { windowMs: 60 * 1000, maxInWindow: 5, lockMs: 2 * 60 * 1000 });
                         if (!rate.ok) {
                             await u.save().catch(() => {});
-                            return i.reply({ content: `⛔ Muitas ações seguidas. Tente <t:${Math.floor((rate.lockedUntil || 0) / 1000)}:R>.`, ephemeral: true });
+                            return safe(i.followUp({ content: `⛔ Muitas ações seguidas. Tente <t:${Math.floor((rate.lockedUntil || 0) / 1000)}:R>.`, ephemeral: true }));
                         }
 
                         const repNow = ensureRep(u);
-                        const raw = await promptOneLine(interaction, {
+                        const raw = await promptOneLine(i, {
                             prompt: `Digite: \`NPC ITEM QTD [distrito]\`\n\nNPCs:\n${vendorsText()}\n\nDistritos:\n${districtsText()}\n\nExemplo: \`RATO CIGS 5 central\``,
                             timeMs: 60000,
                         });
-                        if (!raw) return i.reply({ content: "⏳ Tempo esgotado.", ephemeral: true });
+                        if (!raw) return safe(i.followUp({ content: "⏳ Tempo esgotado.", ephemeral: true }));
                         const parts = raw.trim().split(/\s+/);
                         const vendorId = (parts[0] || "").toUpperCase();
                         const itemId = (parts[1] || "").toUpperCase();
                         const qty = Math.max(1, Math.min(50, parseIntSafe(parts[2]) || 0));
                         const district = pickDistrict(parts[3]);
-                        if (!vendorId || !itemId || !qty) return i.reply({ content: "❌ Formato inválido.", ephemeral: true });
+                        if (!vendorId || !itemId || !qty) return safe(i.followUp({ content: "❌ Formato inválido.", ephemeral: true }));
 
                         const item = ITEMS[itemId];
-                        if (!item) return i.reply({ content: "❌ Item inválido. Veja em “Vendedores (NPCs)”.", ephemeral: true });
-                        if (repNow.level < item.minLevel) return i.reply({ content: `🔒 Você precisa de reputação: **${itemUnlockName(item.minLevel)}**.`, ephemeral: true });
+                        if (!item) return safe(i.followUp({ content: "❌ Item inválido. Veja em “Vendedores (NPCs)”.", ephemeral: true }));
+                        if (repNow.level < item.minLevel) return safe(i.followUp({ content: `🔒 Você precisa de reputação: **${itemUnlockName(item.minLevel)}**.`, ephemeral: true }));
 
                         const mainUser = await client.userdb.getOrCreate(interaction.user.id);
                         const msgCount = Math.max(0, Math.floor(mainUser.economia?.stats?.messagesSent || 0));
@@ -439,25 +740,25 @@ module.exports = {
                         const lvl4 = Math.max(0, Math.floor(req.level4 ?? 500));
                         const needed = item.minLevel >= 4 ? lvl4 : item.minLevel >= 3 ? lvl3 : item.minLevel >= 2 ? lvl2 : 0;
                         if (needed > 0 && msgCount < needed) {
-                            return i.reply({
+                            return safe(i.followUp({
                                 content: `🔒 Requisito de atividade: envie **${needed} mensagens** no chat para negociar itens deste nível. (Atual: ${msgCount})`,
                                 ephemeral: true,
-                            });
+                            }));
                         }
 
                         const vendor = (g.vendors || []).find((v) => v.vendorId === vendorId);
                         const vendorCatalog = VENDORS.find((v) => v.vendorId === vendorId);
-                        if (!vendor || !vendorCatalog) return i.reply({ content: "❌ NPC inválido.", ephemeral: true });
+                        if (!vendor || !vendorCatalog) return safe(i.followUp({ content: "❌ NPC inválido.", ephemeral: true }));
 
                         const stock = vendor.stock || new Map();
                         const current = typeof stock.get === "function" ? Number(stock.get(itemId) || 0) : Number(stock[itemId] || 0);
-                        if (current < qty) return i.reply({ content: `❌ Estoque insuficiente. Disponível: ${current}.`, ephemeral: true });
+                        if (current < qty) return safe(i.followUp({ content: `❌ Estoque insuficiente. Disponível: ${current}.`, ephemeral: true }));
 
                         const priceInfo = computeDynamicPrice({ guildDoc: g, userDoc: u, itemId, districtId: district.id, side: "buy" });
                         const total = Math.floor(priceInfo.buyPriceRaw * qty);
 
                         const paid = await debitWalletIfEnough(client.userdb, interaction.user.id, total, "blackmarket_buy", { guildId: interaction.guildId, itemId, qty, vendorId, district: district.id });
-                        if (!paid) return i.reply({ content: `❌ Saldo insuficiente para pagar ${formatMoney(total)}.`, ephemeral: true });
+                        if (!paid) return safe(i.followUp({ content: `❌ Saldo insuficiente para pagar ${formatMoney(total)}.`, ephemeral: true }));
 
                         const { chance, checkpointActive } = computeInterceptChance({ guildDoc: g, userDoc: u, item, districtId: district.id, totalValue: total });
                         const intercepted = Math.random() < chance;
@@ -502,7 +803,7 @@ module.exports = {
 
                             await g.save().catch(() => {});
                             await u.save().catch(() => {});
-                            return i.reply({ content: `🚨 Interceptado no **${district.name}**. Mercadoria apreendida e **ban do Mercado Negro** aplicado. (- reputação)`, ephemeral: true });
+                            return safe(i.followUp({ content: `🚨 Interceptado no **${district.name}**. Mercadoria apreendida e **ban do Mercado Negro** aplicado. (- reputação)`, ephemeral: true }));
                         }
 
                         addInventory(u, itemId, qty);
@@ -517,26 +818,26 @@ module.exports = {
 
                         await g.save().catch(() => {});
                         await u.save().catch(() => {});
-                        return i.reply({ content: `✅ Compra no **${district.name}**: **${qty}x ${item.name}** por **${formatMoney(total)}**. Risco: **${Math.floor(chance * 100)}%**.`, ephemeral: true });
+                        return safe(i.followUp({ content: `✅ Compra no **${district.name}**: **${qty}x ${item.name}** por **${formatMoney(total)}**. Risco: **${Math.floor(chance * 100)}%**.`, ephemeral: true }));
                     }
 
                     if (action === "vender_item") {
                         const rate = bumpRate(u, { windowMs: 60 * 1000, maxInWindow: 5, lockMs: 2 * 60 * 1000 });
                         if (!rate.ok) {
                             await u.save().catch(() => {});
-                            return i.reply({ content: `⛔ Muitas ações seguidas. Tente <t:${Math.floor((rate.lockedUntil || 0) / 1000)}:R>.`, ephemeral: true });
+                            return safe(i.followUp({ content: `⛔ Muitas ações seguidas. Tente <t:${Math.floor((rate.lockedUntil || 0) / 1000)}:R>.`, ephemeral: true }));
                         }
 
-                        const raw = await promptOneLine(interaction, { prompt: `Digite: \`ITEM QTD [distrito]\`\n\nDistritos:\n${districtsText()}\n\nExemplo: \`CIGS 5 central\``, timeMs: 60000 });
-                        if (!raw) return i.reply({ content: "⏳ Tempo esgotado.", ephemeral: true });
+                        const raw = await promptOneLine(i, { prompt: `Digite: \`ITEM QTD [distrito]\`\n\nDistritos:\n${districtsText()}\n\nExemplo: \`CIGS 5 central\``, timeMs: 60000 });
+                        if (!raw) return safe(i.followUp({ content: "⏳ Tempo esgotado.", ephemeral: true }));
                         const parts = raw.trim().split(/\s+/);
                         const itemId = (parts[0] || "").toUpperCase();
                         const qty = Math.max(1, Math.min(50, parseIntSafe(parts[1]) || 0));
                         const district = pickDistrict(parts[2]);
-                        if (!itemId || !qty) return i.reply({ content: "❌ Formato inválido.", ephemeral: true });
+                        if (!itemId || !qty) return safe(i.followUp({ content: "❌ Formato inválido.", ephemeral: true }));
 
                         const item = ITEMS[itemId];
-                        if (!item) return i.reply({ content: "❌ Item inválido.", ephemeral: true });
+                        if (!item) return safe(i.followUp({ content: "❌ Item inválido.", ephemeral: true }));
 
                         const mainUser = await client.userdb.getOrCreate(interaction.user.id);
                         const msgCount = Math.max(0, Math.floor(mainUser.economia?.stats?.messagesSent || 0));
@@ -546,14 +847,14 @@ module.exports = {
                         const lvl4 = Math.max(0, Math.floor(req.level4 ?? 500));
                         const needed = item.minLevel >= 4 ? lvl4 : item.minLevel >= 3 ? lvl3 : item.minLevel >= 2 ? lvl2 : 0;
                         if (needed > 0 && msgCount < needed) {
-                            return i.reply({
+                            return safe(i.followUp({
                                 content: `🔒 Requisito de atividade: envie **${needed} mensagens** no chat para negociar itens deste nível. (Atual: ${msgCount})`,
                                 ephemeral: true,
-                            });
+                            }));
                         }
 
                         const ok = removeInventory(u, itemId, qty);
-                        if (!ok) return i.reply({ content: "❌ Você não tem essa quantidade no inventário ilícito.", ephemeral: true });
+                        if (!ok) return safe(i.followUp({ content: "❌ Você não tem essa quantidade no inventário ilícito.", ephemeral: true }));
 
                         const priceInfo = computeDynamicPrice({ guildDoc: g, userDoc: u, itemId, districtId: district.id, side: "sell" });
                         const total = Math.floor(priceInfo.sellPriceRaw * qty);
@@ -598,7 +899,7 @@ module.exports = {
 
                             await g.save().catch(() => {});
                             await u.save().catch(() => {});
-                            return i.reply({ content: `🚨 Venda interceptada no **${district.name}**. Mercadoria apreendida e **ban do Mercado Negro** aplicado.`, ephemeral: true });
+                            return safe(i.followUp({ content: `🚨 Venda interceptada no **${district.name}**. Mercadoria apreendida e **ban do Mercado Negro** aplicado.`, ephemeral: true }));
                         }
 
                         await creditWallet(client.userdb, interaction.user.id, total, "blackmarket_sell", { guildId: interaction.guildId, itemId, qty, district: district.id }).catch(() => {});
@@ -613,22 +914,22 @@ module.exports = {
 
                         await g.save().catch(() => {});
                         await u.save().catch(() => {});
-                        return i.reply({ content: `✅ Venda no **${district.name}**: **${qty}x ${item.name}** por **${formatMoney(total)}**. Risco: **${Math.floor(chance * 100)}%**.`, ephemeral: true });
+                        return safe(i.followUp({ content: `✅ Venda no **${district.name}**: **${qty}x ${item.name}** por **${formatMoney(total)}**. Risco: **${Math.floor(chance * 100)}%**.`, ephemeral: true }));
                     }
 
                     if (action === "caixa") {
                         const rate = bumpRate(u, { windowMs: 60 * 1000, maxInWindow: 6, lockMs: 2 * 60 * 1000 });
                         if (!rate.ok) {
                             await u.save().catch(() => {});
-                            return i.reply({ content: `⛔ Rate limit: tente <t:${Math.floor((rate.lockedUntil || 0) / 1000)}:R>.`, ephemeral: true });
+                            return safe(i.followUp({ content: `⛔ Rate limit: tente <t:${Math.floor((rate.lockedUntil || 0) / 1000)}:R>.`, ephemeral: true }));
                         }
-                        const raw = await promptOneLine(interaction, { prompt: "Digite o valor da aposta (ex.: 1000).", timeMs: 60000 });
-                        if (!raw) return i.reply({ content: "⏳ Tempo esgotado.", ephemeral: true });
+                        const raw = await promptOneLine(i, { prompt: "Digite o valor da aposta (ex.: 1000).", timeMs: 60000 });
+                        if (!raw) return safe(i.followUp({ content: "⏳ Tempo esgotado.", ephemeral: true }));
                         const bet = Math.floor(Number(raw.replace(/\./g, "").replace(/,/g, ".")));
-                        if (!Number.isFinite(bet) || bet <= 0) return i.reply({ embeds: [errorEmbed("❌ Aposta inválida.")], ephemeral: true });
+                        if (!Number.isFinite(bet) || bet <= 0) return safe(i.followUp({ embeds: [errorEmbed("❌ Aposta inválida.")], ephemeral: true }));
 
                         const debited = await debitWalletIfEnough(client.userdb, interaction.user.id, bet, "blackmarket_bet", { guild: interaction.guildId });
-                        if (!debited) return i.reply({ embeds: [errorEmbed("❌ Saldo insuficiente na carteira.")], ephemeral: true });
+                        if (!debited) return safe(i.followUp({ embeds: [errorEmbed("❌ Saldo insuficiente na carteira.")], ephemeral: true }));
 
                         const outcome = rollOutcome();
                         const userdb = await client.userdb.getOrCreate(interaction.user.id);
@@ -688,11 +989,11 @@ module.exports = {
                             .addFields({ name: "Saldo", value: formatMoney(updated2.economia.money || 0), inline: true })
                             .setImage(gif);
 
-                        return i.update({ embeds: [e], components: [row] });
+                        return safe(i.editReply({ embeds: [e], components: [row] }));
                     }
                 } catch (err) {
                     console.error(err);
-                    i.reply({ content: "Erro no hub do Mercado Negro.", ephemeral: true }).catch(() => {});
+                    i.followUp({ content: "Erro no hub do Mercado Negro.", ephemeral: true }).catch(() => {});
                 }
             });
 
