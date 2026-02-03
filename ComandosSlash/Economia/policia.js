@@ -70,6 +70,7 @@ module.exports = {
     hubActions: [
         "Status — chefe, oficiais e seu status",
         "Candidatar — entrar para a polícia",
+        "Sair da polícia — deixar a corporação",
         "Pedidos (chefe) — ver pendentes",
         "Aceitar pedido (chefe) — aprovar candidato",
         "Recusar pedido (chefe) — recusar candidato",
@@ -101,6 +102,7 @@ module.exports = {
                 .addOptions([
                     { label: "Status", value: "status", description: "Chefe, oficiais e seu status" },
                     { label: "Candidatar", value: "candidatar", description: "Entrar para a polícia" },
+                    { label: "Sair da polícia", value: "sair", description: "Deixar a corporação" },
                     { label: "Pedidos (chefe)", value: "pedidos", description: "Ver pedidos pendentes" },
                     { label: "Aceitar pedido (chefe)", value: "aceitar", description: "Aprovar candidato" },
                     { label: "Recusar pedido (chefe)", value: "recusar", description: "Recusar candidato" },
@@ -180,6 +182,18 @@ module.exports = {
                         pol.requests.push({ at: Date.now(), userId: interaction.user.id, reason: (reason || "").slice(0, 140), status: "pending", decidedAt: 0, decidedBy: null });
                         await pol.save().catch(() => {});
                         return safe(i.followUp({ content: "✅ Pedido enviado. Aguarde o chefe/aprovação.", ephemeral: true }));
+                    }
+
+                    if (action === "sair") {
+                        if (!meIsOfficer) return safe(i.followUp({ content: "❌ Você não é policial.", ephemeral: true }));
+                        if (meIsChief) return safe(i.followUp({ content: "❌ O Chefe não pode sair. Transfira a chefia ou peça ao Admin.", ephemeral: true }));
+                        
+                        const confirm = await promptOneLine(i, { prompt: "Digite **SAIR** para confirmar sua saída da corporação.", timeMs: 30000 });
+                        if (!confirm || confirm.toUpperCase() !== "SAIR") return safe(i.followUp({ content: "❌ Cancelado.", ephemeral: true }));
+
+                        pol.officers = (pol.officers || []).filter(id => id !== interaction.user.id);
+                        await pol.save().catch(() => {});
+                        return safe(i.followUp({ content: "✅ Você saiu da Polícia.", ephemeral: true }));
                     }
 
                     if (["pedidos", "aceitar", "recusar"].includes(action)) {
