@@ -127,22 +127,20 @@ module.exports = {
                             {
                                 name: "Criminoso (Mercado Negro)",
                                 value: [
-                                    "• `/mercadonegro vendedores`",
-                                    "• `/mercadonegro item_comprar` / `/mercadonegro item_vender`",
-                                    "• `/mercadonegro inventario`",
-                                    "• `/mercadonegro ranking` / `/mercadonegro missoes`",
-                                    "• `/faccao criar|entrar|territorios`",
+                                    "• `/mercadonegro` (abre o menu do submundo)",
+                                    "• No menu: Vendedores → Comprar/Vender → Inventário",
+                                    "• No menu: Missões / Ranking / Caixa ilegal",
+                                    "• `/faccao` (abre o menu de facções e territórios)",
                                 ].join("\n"),
                                 inline: false,
                             },
                             {
                                 name: "Polícia",
                                 value: [
-                                    "• `/policia candidatar` / `/policia status`",
-                                    "• `/policia patrulhar` / `/policia checkpoint`",
-                                    "• `/policia casos` / `/policia caso_ver`",
-                                    "• `/policia caso_investigar` / `/policia caso_capturar`",
-                                    "• `/policia ranking` / `/policia missoes`",
+                                    "• `/policia` (abre o menu da polícia)",
+                                    "• No menu: Candidatar → Patrulhar → Casos",
+                                    "• No menu: Checkpoint / Investigar / Capturar",
+                                    "• No menu: Missões / Ranking",
                                 ].join("\n"),
                                 inline: false,
                             },
@@ -156,7 +154,7 @@ module.exports = {
                                 inline: false,
                             }
                         )
-                        .setFooter({ text: "Dica: admin configura anúncios com /mercadonegro configurar." });
+                        .setFooter({ text: "Dica: os comandos agora são hubs com menu (bem mais fácil)." });
 
                     return i.update({ embeds: [eventEmbed], components: [row] });
                 }
@@ -177,9 +175,9 @@ module.exports = {
                             {
                                 name: "Configuração",
                                 value: [
-                                    "• `/mercadonegro configurar canal:#canal ping_everyone:true|false`",
-                                    "• `/mercadonegro evento_ativar` / `/mercadonegro evento_desativar`",
-                                    "• `/policia definir_chefe usuario:@X`",
+                                    "• `/mercadonegro` → Configurar anúncios (ADM)",
+                                    "• `/mercadonegro` → Ativar/desativar (ADM)",
+                                    "• `/policia` → Definir chefe (ADM)",
                                 ].join("\n"),
                                 inline: false,
                             },
@@ -232,7 +230,7 @@ module.exports = {
                             { name: "/politica set", value: "Ajusta imposto/salário/subsídio (presidente/admin).", inline: true },
                             { name: "/crise iniciar", value: "Inicia crise global (admin).", inline: true },
                             { name: "/crise encerrar", value: "Encerra crise global (admin).", inline: true },
-                            { name: "/policia definir_chefe", value: "Define chefe de polícia (admin).", inline: true }
+                            { name: "/policia", value: "Hub da polícia (inclui Definir chefe no menu).", inline: true }
                         );
 
                     return i.update({ embeds: [categoryEmbed], components: [row] });

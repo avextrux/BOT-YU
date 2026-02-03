@@ -1,5 +1,5 @@
 BOT-YU — LISTA DE COMANDOS
-Gerado em: 02/02/2026, 17:26:37
+Gerado em: 03/02/2026, 14:18:02
 
 Como organizar no servidor (sugestão):
 - Canal #anuncios-evento: anúncios e atrações
@@ -105,14 +105,7 @@ Legenda:
 
 /extrato — Mostra suas últimas movimentações
 
-/faccao — Gangues do submundo: formar facções e disputar território
-  - /faccao listar — Lista facções do servidor
-  - /faccao territorios — Mostra controle territorial
-  - /faccao sair — Sai da sua facção
-  - /faccao criar nome:string tag?:string — Cria uma facção criminosa
-  - /faccao entrar id:string — Entra em uma facção
-  - /faccao info id?:string — Mostra info de uma facção
-  - /faccao influenciar distrito:string pontos:integer — Compra influência em um território (dinheiro -> influência)
+/faccao — Hub de facções: gangues do submundo e territórios
 
 /investigar — Polícia econômica: coletar pistas contra um suspeito
 
@@ -123,41 +116,13 @@ Legenda:
   - /mercado cancelar id:string — Cancela um anúncio (vendedor/admin)
   - /mercado minhas — Lista seus anúncios
 
-/mercadonegro — Evento do submundo: itens ilícitos, reputação, risco e perseguição
-  - /mercadonegro comprar aposta:number — Abre uma caixa ilegal (cassino clandestino)
-  - /mercadonegro status — Mostra seu status no submundo
-  - /mercadonegro evento_ativar — Ativa o evento do mercado negro (admin)
-  - /mercadonegro evento_desativar — Desativa o evento do mercado negro (admin)
-  - /mercadonegro vendedores — Mostra NPCs e inventários atuais
-  - /mercadonegro item_comprar npc:string item:string quantidade:integer distrito?:string — Compra item ilícito de um NPC
-  - /mercadonegro item_vender item:string quantidade:integer distrito?:string — Vende item ilícito (se tiver no inventário)
-  - /mercadonegro inventario — Mostra seus itens ilícitos
-  - /mercadonegro configurar canal?:channel ping_everyone?:boolean — Configura canal de anúncios do evento (admin)
-  - /mercadonegro ranking — Ranking dos maiores criminosos (lucro)
-  - /mercadonegro missoes — Mostra missões diárias e semanais
-  - /mercadonegro missao_resgatar id:string — Resgata recompensa de uma missão concluída
+/mercadonegro — Hub do Mercado Negro: NPCs, itens, reputação, missões e risco
 
 /pay — Transfira dinheiro para outro usuário
 
 /perfil — ver a sua atm ou a de alguém
 
-/policia — Sistema de polícia econômica
-  - /policia definir_chefe usuario:user — Define o chefe de polícia (admin)
-  - /policia candidatar motivo?:string — Envia candidatura para polícia
-  - /policia pedidos — Vê pedidos pendentes (chefe/admin)
-  - /policia aceitar usuario:user — Aceita candidatura (chefe/admin)
-  - /policia recusar usuario:user — Recusa candidatura (chefe/admin)
-  - /policia remover usuario:user — Remove policial (chefe/admin)
-  - /policia patrulhar distrito?:string — Faz uma patrulha e tenta encontrar pistas
-  - /policia checkpoint distrito:string — Coloca um checkpoint estratégico
-  - /policia casos — Lista casos abertos do submundo
-  - /policia caso_ver id:string — Vê detalhes de um caso
-  - /policia caso_investigar id:string — Avança a investigação de um caso
-  - /policia caso_capturar id:string — Finaliza um caso e tenta capturar o suspeito
-  - /policia ranking — Ranking dos policiais mais eficientes
-  - /policia missoes — Mostra missões policiais
-  - /policia missao_resgatar id:string — Resgata missão policial concluída
-  - /policia status usuario?:user — Mostra status da polícia
+/policia — Hub da Polícia: patrulhas, checkpoints, casos, ranking e missões
 
 /politica — Política econômica do servidor
   - /politica status — Mostra a política atual
