@@ -1,4 +1,5 @@
 const Discord = require("discord.js");
+const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
 
 module.exports = {
     name: "dados",
@@ -27,6 +28,10 @@ module.exports = {
         try {
             const lados = interaction.options.getInteger("lados") || 6;
             const aposta = Math.floor(interaction.options.getNumber("aposta") || 0);
+            if (aposta > 0) {
+                const ok = await ensureEconomyAllowed(client, interaction, interaction.user.id);
+                if (!ok) return;
+            }
 
             let userdb;
             if (aposta > 0) {

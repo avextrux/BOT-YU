@@ -36,6 +36,8 @@ const BlackMarketUserSchema = new Schema(
             criminalRuns: { type: Number, default: 0, index: true },
             seizedCount: { type: Number, default: 0, index: true },
             seizedValue: { type: Number, default: 0, index: true },
+            repBoughtToday: { type: Number, default: 0 },
+            repBoughtResetAt: { type: Number, default: 0, index: true },
         },
 
         missions: { type: [MissionProgressSchema], default: [] },

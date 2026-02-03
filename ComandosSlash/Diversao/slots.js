@@ -1,4 +1,5 @@
 const Discord = require("discord.js");
+const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
 
 module.exports = {
     name: "slots",
@@ -14,6 +15,8 @@ module.exports = {
     ],
     run: async (client, interaction) => {
         try {
+            const ok = await ensureEconomyAllowed(client, interaction, interaction.user.id);
+            if (!ok) return;
             const aposta = Math.floor(interaction.options.getNumber("aposta"));
 
             if (aposta <= 0) return interaction.reply({ content: "❌ Aposta inválida.", ephemeral: true });

@@ -1,6 +1,6 @@
 const client = require("../../index");
 const { VENDORS, ITEMS } = require("../../Utils/blackMarketCatalog");
-const { ensureVendorState, decayHeat, updateDemandEma } = require("../../Utils/blackMarketEngine");
+const { ensureVendorState, decayHeat, updateDemandEma, DISTRICTS } = require("../../Utils/blackMarketEngine");
 const Discord = require("discord.js");
 
 async function trySendToChannel(channelId, payload) {
@@ -68,9 +68,9 @@ async function tick() {
             }
 
             const cfg = g.config || {};
-            if (!cfg.eventProbs) cfg.eventProbs = { discount: 0.05, raid: 0.05, shortage: 0.05, surplus: 0.05 };
-            if (!cfg.activeEvents) cfg.activeEvents = { raidUntil: 0, shortage: { until: 0 }, surplus: { until: 0 } };
-            if (!cfg.eventLog) cfg.eventLog = { lastRaidEndAt: 0, lastShortageEndAt: 0, lastSurplusEndAt: 0, lastDiscountEndAt: 0 };
+            if (!cfg.eventProbs) cfg.eventProbs = { discount: 0.05, raid: 0.05, shortage: 0.05, surplus: 0.05, checkpointOp: 0.03 };
+            if (!cfg.activeEvents) cfg.activeEvents = { raidUntil: 0, shortage: { until: 0 }, surplus: { until: 0 }, checkpointOpUntil: 0 };
+            if (!cfg.eventLog) cfg.eventLog = { lastRaidEndAt: 0, lastShortageEndAt: 0, lastSurplusEndAt: 0, lastDiscountEndAt: 0, lastCheckpointOpEndAt: 0 };
             if (!cfg.eventCooldownMs) cfg.eventCooldownMs = 10 * 60 * 1000;
             if (!cfg.eventCooldownUntil) cfg.eventCooldownUntil = 0;
 
@@ -130,11 +130,23 @@ async function tick() {
                 await trySendToChannel(channelId, { embeds: [embed] });
             }
 
+            const checkpointOpUntil = Number(activeEvents.checkpointOpUntil || 0);
+            if (checkpointOpUntil > 0 && checkpointOpUntil <= now && log.lastCheckpointOpEndAt !== checkpointOpUntil) {
+                log.lastCheckpointOpEndAt = checkpointOpUntil;
+                activeEvents.checkpointOpUntil = 0;
+                const embed = new Discord.MessageEmbed()
+                    .setTitle("✅ Operação de Checkpoints encerrada")
+                    .setColor("DARK_GREEN")
+                    .setDescription("Os bloqueios foram removidos. A cidade dá uma trégua.");
+                await trySendToChannel(channelId, { embeds: [embed] });
+            }
+
             const isEventActive = 
                 (cfg.discountUntil || 0) > now || 
                 (activeEvents.raidUntil || 0) > now ||
                 (activeEvents.shortage?.until || 0) > now ||
-                (activeEvents.surplus?.until || 0) > now;
+                (activeEvents.surplus?.until || 0) > now ||
+                (activeEvents.checkpointOpUntil || 0) > now;
 
             if (!isEventActive && now >= Number(cfg.eventCooldownUntil || 0)) {
                 const roll = Math.random();
@@ -194,6 +206,42 @@ async function tick() {
                         .setTitle("📦 SUPERÁVIT DE ESTOQUE")
                         .setColor("GREEN")
                         .setDescription(`Chegou um carregamento extra de **${item.name}**.\n\n📉 **Preço:** -40% (Desconto).\n\nDuração: 30 minutos.`);
+                    await trySendToChannel(channelId, { content, embeds: [embed] });
+                    g.config.activeEvents = activeEvents;
+                    await g.save();
+                    continue;
+                }
+
+                // Checkpoint Operation
+                acc += (probs.checkpointOp || 0.03);
+                if (roll < acc) {
+                    const duration = 25 * 60 * 1000;
+                    cfg.eventCooldownUntil = now + Math.max(0, Math.floor(cfg.eventCooldownMs || 0));
+                    activeEvents.checkpointOpUntil = now + duration;
+
+                    const districts = Object.values(DISTRICTS || {}).filter((d) => d && d.id);
+                    const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+                    const d1 = districts.length ? pick(districts) : { id: "central", name: "Central" };
+                    const d2 = districts.length ? pick(districts) : { id: "central", name: "Central" };
+
+                    if (!Array.isArray(g.checkpoints)) g.checkpoints = [];
+                    g.checkpoints.push({ districtId: d1.id, activeUntil: now + duration });
+                    g.checkpoints.push({ districtId: d2.id, activeUntil: now + duration });
+                    g.checkpoints = g.checkpoints.slice(-20);
+
+                    const embed = new Discord.MessageEmbed()
+                        .setTitle("🚧 Operação de Checkpoints")
+                        .setColor("BLUE")
+                        .setDescription(
+                            [
+                                "A polícia montou bloqueios em pontos estratégicos.",
+                                "",
+                                `📍 Checkpoints: **${d1.name}** e **${d2.name}**`,
+                                "⚠️ Interceptação: aumentada nesses distritos.",
+                                "",
+                                "Duração: 25 minutos.",
+                            ].join("\n")
+                        );
                     await trySendToChannel(channelId, { content, embeds: [embed] });
                     g.config.activeEvents = activeEvents;
                     await g.save();

@@ -6,8 +6,9 @@ module.exports = {
     type: "CHAT_INPUT",
     hubActions: [
         "Geral — ativar/desativar, canal e @everyone",
-        "Probabilidades — raid/escassez/superávit/leilão",
+        "Probabilidades — raid/escassez/superávit/leilão/checkpoints",
         "Economia & Heat — decay, patrulha base, bônus checkpoint",
+        "Reputação — loja de reputação do submundo",
     ],
     run: async (client, interaction) => {
         try {
@@ -18,13 +19,14 @@ module.exports = {
             const getSettings = async () => {
                 const g = await client.blackMarketGuilddb.getOrCreate(interaction.guildId);
                 if (!g.config) g.config = {};
-                if (!g.config.eventProbs) g.config.eventProbs = { discount: 0.05, raid: 0.05, shortage: 0.05, surplus: 0.05 };
+                if (!g.config.eventProbs) g.config.eventProbs = { discount: 0.05, raid: 0.05, shortage: 0.05, surplus: 0.05, checkpointOp: 0.03 };
                 if (!g.config.eventCooldownMs) g.config.eventCooldownMs = 10 * 60 * 1000;
                 if (!g.config.eventCooldownUntil) g.config.eventCooldownUntil = 0;
                 if (!g.config.heatDecayPerHour) g.config.heatDecayPerHour = 4;
                 if (!g.config.patrolBaseChance) g.config.patrolBaseChance = 0.08;
                 if (!g.config.checkpointBonus) g.config.checkpointBonus = 0.12;
                 if (!g.config.activityRequirements) g.config.activityRequirements = { level2: 50, level3: 200, level4: 500 };
+                if (!g.config.repShop) g.config.repShop = { enabled: true, pricePerRep: 120, maxPerDay: 250 };
                 if (!g.announce) g.announce = { channelId: null, pingEveryone: false };
                 return g;
             };
@@ -39,6 +41,7 @@ module.exports = {
                     { label: "Probabilidades de Eventos", value: "probs", description: "Ajustar chance de Raid, Promoção, etc.", emoji: "🎲" },
                     { label: "Economia & Heat", value: "economy", description: "Decaimento de Heat, Patrulha Base", emoji: "💰" },
                     { label: "Desafios", value: "activity", description: "Requisitos de mensagens para itens por nível", emoji: "🏁" },
+                    { label: "Reputação (Loja)", value: "rep", description: "Preço e limite diário de reputação", emoji: "⭐" },
                 ]);
 
             const row = new Discord.MessageActionRow().addComponents(menu);
@@ -77,7 +80,8 @@ module.exports = {
                         `**Desconto (Promoção):** ${(p.discount * 100).toFixed(1)}%`,
                         `**Raid Policial:** ${(p.raid * 100).toFixed(1)}%`,
                         `**Escassez (Item some):** ${(p.shortage * 100).toFixed(1)}%`,
-                        `**Superávit (Item barato):** ${(p.surplus * 100).toFixed(1)}%`
+                        `**Superávit (Item barato):** ${(p.surplus * 100).toFixed(1)}%`,
+                        `**Operação de Checkpoints:** ${((p.checkpointOp || 0) * 100).toFixed(1)}%`
                     ].join("\n");
 
                     const rowProbs = new Discord.MessageActionRow().addComponents(
@@ -132,6 +136,26 @@ module.exports = {
 
                     return i.update({ embeds: [e], components: [row, rowAct] });
                 }
+
+                if (action === "rep") {
+                    const r = g.config.repShop || { enabled: true, pricePerRep: 120, maxPerDay: 250 };
+                    const desc = [
+                        `**Ativo:** ${r.enabled ? "Sim" : "Não"}`,
+                        `**Preço por 1 rep:** ${Math.max(1, Math.floor(r.pricePerRep || 120))}`,
+                        `**Limite por dia:** ${Math.max(0, Math.floor(r.maxPerDay || 0))} rep`,
+                    ].join("\n");
+
+                    const rowRep = new Discord.MessageActionRow().addComponents(
+                        new Discord.MessageButton().setCustomId("cfg_edit_rep").setLabel("Editar Loja de Reputação").setStyle("PRIMARY")
+                    );
+
+                    const e = new Discord.MessageEmbed()
+                        .setTitle("⭐ Loja de Reputação")
+                        .setColor("GOLD")
+                        .setDescription(desc);
+
+                    return i.update({ embeds: [e], components: [row, rowRep] });
+                }
             });
 
             // Button Collector for sub-actions
@@ -168,7 +192,8 @@ module.exports = {
                         new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("prob_discount").setLabel("Desconto %").setValue((p.discount*100).toString()).setStyle("SHORT")),
                         new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("prob_raid").setLabel("Raid %").setValue((p.raid*100).toString()).setStyle("SHORT")),
                         new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("prob_shortage").setLabel("Escassez %").setValue((p.shortage*100).toString()).setStyle("SHORT")),
-                        new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("prob_surplus").setLabel("Superávit %").setValue((p.surplus*100).toString()).setStyle("SHORT"))
+                        new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("prob_surplus").setLabel("Superávit %").setValue((p.surplus*100).toString()).setStyle("SHORT")),
+                        new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("prob_checkpoint_op").setLabel("Checkpoint %").setValue(((p.checkpointOp || 0)*100).toString()).setStyle("SHORT"))
                     );
                     await i.showModal(modal);
                 }
@@ -193,6 +218,18 @@ module.exports = {
                         new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("act_level2").setLabel("Nível 2+ (mensagens)").setValue(String(Math.max(0, Math.floor(a.level2 || 0)))).setStyle("SHORT")),
                         new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("act_level3").setLabel("Nível 3+ (mensagens)").setValue(String(Math.max(0, Math.floor(a.level3 || 0)))).setStyle("SHORT")),
                         new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("act_level4").setLabel("Nível 4+ (mensagens)").setValue(String(Math.max(0, Math.floor(a.level4 || 0)))).setStyle("SHORT"))
+                    );
+                    await i.showModal(modal);
+                }
+
+                if (i.customId === "cfg_edit_rep") {
+                    const modal = new Discord.Modal().setCustomId("cfg_modal_rep").setTitle("Loja de Reputação");
+                    const r = g.config.repShop || { enabled: true, pricePerRep: 120, maxPerDay: 250 };
+
+                    modal.addComponents(
+                        new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("rep_enabled").setLabel("Ativo? (sim/nao)").setValue(r.enabled ? "sim" : "nao").setStyle("SHORT")),
+                        new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("rep_price").setLabel("Preço por 1 rep").setValue(String(Math.max(1, Math.floor(r.pricePerRep || 120)))).setStyle("SHORT")),
+                        new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("rep_max").setLabel("Limite por dia (rep)").setValue(String(Math.max(0, Math.floor(r.maxPerDay || 0)))).setStyle("SHORT"))
                     );
                     await i.showModal(modal);
                 }

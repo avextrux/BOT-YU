@@ -48,6 +48,7 @@ const BlackMarketGuildSchema = new Schema(
                 raid: { type: Number, default: 0.05 },
                 shortage: { type: Number, default: 0.05 },
                 surplus: { type: Number, default: 0.05 },
+                checkpointOp: { type: Number, default: 0.03 },
             },
             activeEvents: {
                 raidUntil: { type: Number, default: 0 },
@@ -59,17 +60,24 @@ const BlackMarketGuildSchema = new Schema(
                     until: { type: Number, default: 0 },
                     itemId: { type: String, default: null },
                 },
+                checkpointOpUntil: { type: Number, default: 0 },
             },
             eventLog: {
                 lastRaidEndAt: { type: Number, default: 0 },
                 lastShortageEndAt: { type: Number, default: 0 },
                 lastSurplusEndAt: { type: Number, default: 0 },
                 lastDiscountEndAt: { type: Number, default: 0 },
+                lastCheckpointOpEndAt: { type: Number, default: 0 },
             },
             activityRequirements: {
                 level2: { type: Number, default: 50 },
                 level3: { type: Number, default: 200 },
                 level4: { type: Number, default: 500 },
+            },
+            repShop: {
+                enabled: { type: Boolean, default: true },
+                pricePerRep: { type: Number, default: 120 },
+                maxPerDay: { type: Number, default: 250 },
             },
         },
 

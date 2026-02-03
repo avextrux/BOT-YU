@@ -1,9 +1,17 @@
 const Discord = require("discord.js");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
-const { formatMoney, debitWalletIfEnough, errorEmbed } = require("../../Utils/economy");
+const { formatMoney, debitWalletIfEnough, creditWallet, errorEmbed } = require("../../Utils/economy");
 const { DISTRICTS } = require("../../Utils/blackMarketEngine");
 const { ensureTerritories, applyCriminalInfluence, territoryIdFor } = require("../../Utils/territoryEngine");
 const { bumpRate } = require("../../Utils/antiCheat");
+
+const LIMITS = {
+    nameMin: 3,
+    nameMax: 24,
+    tagMin: 2,
+    tagMax: 5,
+    maxMembers: 30,
+};
 
 function genFactionId(guildId) {
     return `F_${guildId}_${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
@@ -34,6 +42,31 @@ function parseUserId(raw) {
     return null;
 }
 
+function normalizeSpaces(s) {
+    return String(s || "")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function normalizeFactionName(raw) {
+    const name = normalizeSpaces(raw);
+    return name;
+}
+
+function normalizeTag(raw) {
+    const tag = String(raw || "")
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "")
+        .trim();
+    return tag;
+}
+
+function parseAmount(raw) {
+    const n = Number(String(raw || "").replace(/\./g, "").replace(/,/g, "."));
+    if (!Number.isFinite(n)) return 0;
+    return Math.floor(n);
+}
+
 async function promptOneLine(interaction, { prompt, timeMs = 60000 }) {
     if (!interaction.channel || typeof interaction.channel.awaitMessages !== "function") return null;
     await interaction.followUp({ content: prompt, ephemeral: true }).catch(() => {});
@@ -44,6 +77,34 @@ async function promptOneLine(interaction, { prompt, timeMs = 60000 }) {
     const value = msg.content;
     msg.delete().catch(() => {});
     return value;
+}
+
+async function findFactionByInput(client, guildId, raw) {
+    const q = normalizeSpaces(raw);
+    if (!q) return { faction: null, candidates: [] };
+    if (/^F_/i.test(q)) {
+        const faction = await client.factiondb.findOne({ guildID: guildId, factionId: q.trim() }).lean();
+        return { faction: faction || null, candidates: [] };
+    }
+
+    const tagQ = normalizeTag(q);
+    if (tagQ.length >= LIMITS.tagMin && tagQ.length <= LIMITS.tagMax) {
+        const candidates = await client.factiondb
+            .find({ guildID: guildId, side: "criminal", tag: new RegExp(`^${tagQ}$`, "i") })
+            .sort({ rep: -1 })
+            .limit(5)
+            .lean();
+        if (candidates.length === 1) return { faction: candidates[0], candidates: [] };
+        return { faction: null, candidates };
+    }
+
+    const candidates = await client.factiondb
+        .find({ guildID: guildId, side: "criminal", name: new RegExp(`^${q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") })
+        .sort({ rep: -1 })
+        .limit(5)
+        .lean();
+    if (candidates.length === 1) return { faction: candidates[0], candidates: [] };
+    return { faction: null, candidates };
 }
 
 async function getMyFaction(client, guildId, userId) {
@@ -66,10 +127,12 @@ module.exports = {
         "Minha facção — status e membros",
         "Listar facções — top facções do servidor",
         "Territórios — controle territorial por distrito",
-        "Criar facção — criar sua gangue",
-        "Entrar em facção — entrar usando ID",
+        "Criar facção — criar sua gangue (nome e tag)",
+        "Entrar em facção — entrar por ID/tag/nome",
         "Sair da facção — sair da sua gangue",
         "Comprar influência — dinheiro -> influência",
+        "Depositar no cofre — carteira -> cofre da facção",
+        "Pagar membro (cofre) — líder paga alguém com o cofre",
         "Transferir liderança — líder passa liderança",
         "Expulsar membro — líder remove alguém",
         "Deletar facção — líder/admin apaga facção",
@@ -89,16 +152,18 @@ module.exports = {
                 .setCustomId("faccao_hub_action")
                 .setPlaceholder("Selecionar comando...")
                 .addOptions([
-                    { label: "Minha facção", value: "minha", description: "Ver status e membros" },
-                    { label: "Listar facções", value: "listar", description: "Top facções do servidor" },
-                    { label: "Territórios", value: "territorios", description: "Controle territorial" },
-                    { label: "Criar facção", value: "criar", description: "Criar sua gangue" },
-                    { label: "Entrar em facção", value: "entrar", description: "Entrar usando ID" },
-                    { label: "Sair da facção", value: "sair", description: "Sair da sua gangue" },
-                    { label: "Comprar influência", value: "influenciar", description: "Dinheiro -> influência" },
-                    { label: "Transferir liderança", value: "transferir", description: "Líder: passar liderança" },
-                    { label: "Expulsar membro", value: "expulsar", description: "Líder: remover alguém" },
-                    { label: "Deletar facção", value: "deletar", description: "Líder/Admin: apagar facção" },
+                    { label: "🏴 Minha facção", value: "minha", description: "Ver status e membros" },
+                    { label: "📜 Listar facções", value: "listar", description: "Top facções do servidor" },
+                    { label: "🗺️ Territórios", value: "territorios", description: "Controle territorial" },
+                    { label: "➕ Criar facção", value: "criar", description: "Criar facção (nome/tag)" },
+                    { label: "✅ Entrar em facção", value: "entrar", description: "Entrar por ID/tag/nome" },
+                    { label: "🚪 Sair da facção", value: "sair", description: "Sair da sua facção" },
+                    { label: "📈 Comprar influência", value: "influenciar", description: "Dinheiro -> influência" },
+                    { label: "🏦 Depositar no cofre", value: "depositar", description: "Carteira -> cofre" },
+                    { label: "💸 Pagar membro (cofre)", value: "pagar", description: "Líder: pagar alguém com o cofre" },
+                    { label: "👑 Transferir liderança", value: "transferir", description: "Líder: passar liderança" },
+                    { label: "🧹 Expulsar membro", value: "expulsar", description: "Líder: remover alguém" },
+                    { label: "🗑️ Deletar facção", value: "deletar", description: "Líder/Admin: apagar facção" },
                 ]);
 
             const row = new Discord.MessageActionRow().addComponents(menu);
@@ -181,10 +246,21 @@ module.exports = {
                         const raw = await promptOneLine(interaction, { prompt: "Digite: `Nome da facção | TAG` (ou só o nome).", timeMs: 60000 });
                         if (!raw) return i.reply({ content: "⏳ Tempo esgotado.", ephemeral: true });
                         const parts = raw.split("|").map((x) => x.trim()).filter(Boolean);
-                        const name = (parts[0] || "").trim();
-                        const tag = (parts[1] || "").trim();
-                        if (name.length < 3 || name.length > 24) return i.reply({ embeds: [errorEmbed("❌ Nome inválido (3 a 24).")], ephemeral: true });
-                        if (tag && (tag.length < 2 || tag.length > 5)) return i.reply({ embeds: [errorEmbed("❌ Tag inválida (2 a 5).")], ephemeral: true });
+                        const name = normalizeFactionName(parts[0] || "");
+                        const tag = parts[1] ? normalizeTag(parts[1]) : "";
+                        if (name.length < LIMITS.nameMin || name.length > LIMITS.nameMax) {
+                            return i.reply({ embeds: [errorEmbed(`❌ Nome inválido (${LIMITS.nameMin} a ${LIMITS.nameMax}).`)], ephemeral: true });
+                        }
+                        if (tag && (tag.length < LIMITS.tagMin || tag.length > LIMITS.tagMax)) {
+                            return i.reply({ embeds: [errorEmbed(`❌ Tag inválida (${LIMITS.tagMin} a ${LIMITS.tagMax}).`)], ephemeral: true });
+                        }
+
+                        const sameName = await client.factiondb.findOne({ guildID: interaction.guildId, name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") }).select({ _id: 1 }).lean();
+                        if (sameName) return i.reply({ content: "❌ Já existe uma facção com esse nome.", ephemeral: true });
+                        if (tag) {
+                            const sameTag = await client.factiondb.findOne({ guildID: interaction.guildId, tag: new RegExp(`^${tag}$`, "i") }).select({ _id: 1 }).lean();
+                            if (sameTag) return i.reply({ content: "❌ Já existe uma facção com essa TAG.", ephemeral: true });
+                        }
 
                         const factionId = await generateUniqueFactionId(client, interaction.guildId);
                         try {
@@ -202,34 +278,77 @@ module.exports = {
                                 territories: [],
                             });
                         } catch (e) {
-                            if (String(e?.code) === "11000") return i.reply({ content: "❌ Já existe uma facção com esse nome.", ephemeral: true });
+                            if (String(e?.code) === "11000") {
+                                const msg = String(e?.message || "");
+                                if (msg.includes("guildID_1_name_1")) return i.reply({ content: "❌ Já existe uma facção com esse nome.", ephemeral: true });
+                                if (msg.includes("factionId_1")) return i.reply({ content: "❌ Tente novamente (ID da facção colidiu).", ephemeral: true });
+                                return i.reply({ content: "❌ Já existe uma facção com esses dados.", ephemeral: true });
+                            }
                             throw e;
                         }
-                        user.faction = { factionId, joinedAt: Date.now() };
-                        await user.save().catch(() => {});
-                        return i.reply({ content: `✅ Facção criada: **${name}** (ID: \`${factionId}\`).`, ephemeral: true });
+
+                        const now = Date.now();
+                        const userRes = await client.blackMarketUserdb.updateOne(
+                            { guildID: interaction.guildId, userID: interaction.user.id, "faction.factionId": null },
+                            { $set: { faction: { factionId, joinedAt: now } } }
+                        );
+                        if (!userRes?.modifiedCount) {
+                            await client.factiondb.deleteOne({ guildID: interaction.guildId, factionId }).catch(() => {});
+                            return i.reply({ content: "❌ Não consegui concluir a criação (você entrou em outra facção no meio do processo).", ephemeral: true });
+                        }
+
+                        return i.reply({ content: `✅ Facção criada: **${name}**${tag ? ` [\`${tag}\`]` : ""}\nID: \`${factionId}\``, ephemeral: true });
                     }
 
                     if (action === "entrar") {
                         const { user } = await getMyFaction(client, interaction.guildId, interaction.user.id);
                         if (user.faction?.factionId) return i.reply({ content: "❌ Você já está em uma facção.", ephemeral: true });
-                        const id = await promptOneLine(interaction, { prompt: "Digite o ID da facção (ex.: `F_...`).", timeMs: 60000 });
-                        if (!id) return i.reply({ content: "⏳ Tempo esgotado.", ephemeral: true });
+                        const input = await promptOneLine(interaction, { prompt: "Digite o **ID**, **TAG** ou **nome exato** da facção.", timeMs: 60000 });
+                        if (!input) return i.reply({ content: "⏳ Tempo esgotado.", ephemeral: true });
+
+                        const resolved = await findFactionByInput(client, interaction.guildId, input);
+                        if (resolved.candidates?.length) {
+                            const lines = resolved.candidates
+                                .map((f) => `• **${f.name}** ${f.tag ? `[\`${f.tag}\`]` : ""} — ID: \`${f.factionId}\``)
+                                .join("\n")
+                                .slice(0, 1500);
+                            return i.reply({ content: `🔎 Encontrei mais de uma facção. Use o **ID** para entrar:\n${lines}`, ephemeral: true });
+                        }
+                        if (!resolved.faction) return i.reply({ content: "❌ Facção não encontrada. Use **/faccao → Listar facções** para pegar o ID.", ephemeral: true });
+
                         const now = Date.now();
                         const updated = await client.factiondb.findOneAndUpdate(
                             {
                                 guildID: interaction.guildId,
-                                factionId: id.trim(),
+                                factionId: resolved.faction.factionId,
                                 side: "criminal",
                                 "members.userId": { $ne: interaction.user.id },
-                                $expr: { $lt: [{ $size: "$members" }, 30] },
+                                $expr: { $lt: [{ $size: "$members" }, LIMITS.maxMembers] },
                             },
                             { $push: { members: { userId: interaction.user.id, role: "member", joinedAt: now } } },
                             { new: true }
                         );
-                        if (!updated) return i.reply({ content: "❌ Não consegui entrar (inexistente/cheia/já membro).", ephemeral: true });
-                        user.faction = { factionId: updated.factionId, joinedAt: now };
-                        await user.save().catch(() => {});
+
+                        if (!updated) {
+                            const current = await client.factiondb.findOne({ guildID: interaction.guildId, factionId: resolved.faction.factionId }).lean();
+                            if (!current) return i.reply({ content: "❌ Facção não existe mais.", ephemeral: true });
+                            if ((current.members || []).some((m) => m.userId === interaction.user.id)) return i.reply({ content: "❌ Você já é membro dessa facção.", ephemeral: true });
+                            if ((current.members || []).length >= LIMITS.maxMembers) return i.reply({ content: `❌ Facção cheia (máx. ${LIMITS.maxMembers}).`, ephemeral: true });
+                            return i.reply({ content: "❌ Não consegui entrar agora. Tente novamente.", ephemeral: true });
+                        }
+
+                        const userRes = await client.blackMarketUserdb.updateOne(
+                            { guildID: interaction.guildId, userID: interaction.user.id, "faction.factionId": null },
+                            { $set: { faction: { factionId: updated.factionId, joinedAt: now } } }
+                        );
+                        if (!userRes?.modifiedCount) {
+                            await client.factiondb.updateOne(
+                                { guildID: interaction.guildId, factionId: updated.factionId },
+                                { $pull: { members: { userId: interaction.user.id } } }
+                            ).catch(() => {});
+                            return i.reply({ content: "❌ Não consegui concluir a entrada (sua facção mudou no meio do processo).", ephemeral: true });
+                        }
+
                         return i.reply({ content: `✅ Você entrou na facção **${updated.name}**.`, ephemeral: true });
                     }
 
@@ -239,17 +358,21 @@ module.exports = {
                         if (!myFactionId) return i.reply({ content: "❌ Você não está em facção.", ephemeral: true });
                         const f = await client.factiondb.findOne({ guildID: interaction.guildId, factionId: myFactionId });
                         if (!f) {
-                            user.faction = { factionId: null, joinedAt: 0 };
-                            await user.save().catch(() => {});
+                            await client.blackMarketUserdb.updateOne(
+                                { guildID: interaction.guildId, userID: interaction.user.id },
+                                { $set: { "faction.factionId": null, "faction.joinedAt": 0 } }
+                            ).catch(() => {});
                             return i.reply({ content: "✅ Você saiu da facção.", ephemeral: true });
                         }
                         if (f.leaderId === interaction.user.id) {
                             return i.reply({ content: "❌ Você é líder. Transfira a liderança antes de sair.", ephemeral: true });
                         }
-                        f.members = (f.members || []).filter((m) => m.userId !== interaction.user.id);
-                        await f.save().catch(() => {});
-                        user.faction = { factionId: null, joinedAt: 0 };
-                        await user.save().catch(() => {});
+                        await client.factiondb
+                            .updateOne({ guildID: interaction.guildId, factionId: myFactionId }, { $pull: { members: { userId: interaction.user.id } } })
+                            .catch(() => {});
+                        await client.blackMarketUserdb
+                            .updateOne({ guildID: interaction.guildId, userID: interaction.user.id }, { $set: { "faction.factionId": null, "faction.joinedAt": 0 } })
+                            .catch(() => {});
                         return i.reply({ content: `✅ Você saiu da facção${faction?.name ? ` **${faction.name}**` : ""}.`, ephemeral: true });
                     }
 
@@ -257,6 +380,17 @@ module.exports = {
                         const { user } = await getMyFaction(client, interaction.guildId, interaction.user.id);
                         const myFactionId = user.faction?.factionId || null;
                         if (!myFactionId) return i.reply({ content: "❌ Você precisa estar em uma facção.", ephemeral: true });
+
+                        if (client.blackMarketGuilddb) {
+                            const g = await client.blackMarketGuilddb.getOrCreate(interaction.guildId);
+                            const req = g.config?.activityRequirements || {};
+                            const needed = Math.max(0, Math.floor(req.level2 ?? 50));
+                            const mainUser = await client.userdb.getOrCreate(interaction.user.id);
+                            const msgCount = Math.max(0, Math.floor(mainUser.economia?.stats?.messagesSent || 0));
+                            if (needed > 0 && msgCount < needed) {
+                                return i.reply({ content: `🔒 Desafio de atividade: envie **${needed} mensagens** no chat para comprar influência. (Atual: ${msgCount})`, ephemeral: true });
+                            }
+                        }
 
                         const raw = await promptOneLine(interaction, { prompt: `Digite: \`distrito pontos\`\n\nDistritos:\n${districtsText()}\n\nExemplo: \`central 10\``, timeMs: 60000 });
                         if (!raw) return i.reply({ content: "⏳ Tempo esgotado.", ephemeral: true });
@@ -288,6 +422,49 @@ module.exports = {
                         }
 
                         return i.reply({ content: `✅ Influência aplicada em **${t.name}**. Custo: ${formatMoney(cost)}.`, ephemeral: true });
+                    }
+
+                    if (action === "depositar") {
+                        const { user } = await getMyFaction(client, interaction.guildId, interaction.user.id);
+                        const myFactionId = user.faction?.factionId || null;
+                        if (!myFactionId) return i.reply({ content: "❌ Você precisa estar em uma facção.", ephemeral: true });
+
+                        const raw = await promptOneLine(interaction, { prompt: "Digite o valor para depositar no cofre (ex.: 1000).", timeMs: 60000 });
+                        if (!raw) return i.reply({ content: "⏳ Tempo esgotado.", ephemeral: true });
+                        const amount = Math.max(1, Math.min(1_000_000_000_000, parseAmount(raw)));
+                        if (!Number.isFinite(amount) || amount <= 0) return i.reply({ content: "❌ Valor inválido.", ephemeral: true });
+
+                        const paid = await debitWalletIfEnough(client.userdb, interaction.user.id, amount, "faction_treasury_deposit", { guildId: interaction.guildId, factionId: myFactionId });
+                        if (!paid) return i.reply({ content: `❌ Você precisa de ${formatMoney(amount)} na carteira.`, ephemeral: true });
+
+                        await client.factiondb.updateOne({ guildID: interaction.guildId, factionId: myFactionId }, { $inc: { treasury: amount } }).catch(() => {});
+                        return i.reply({ content: `✅ Depósito no cofre: **${formatMoney(amount)}**.`, ephemeral: true });
+                    }
+
+                    if (action === "pagar") {
+                        const { user } = await getMyFaction(client, interaction.guildId, interaction.user.id);
+                        const myFactionId = user.faction?.factionId || null;
+                        if (!myFactionId) return i.reply({ content: "❌ Você não está em facção.", ephemeral: true });
+                        const f = await client.factiondb.findOne({ guildID: interaction.guildId, factionId: myFactionId });
+                        if (!f) return i.reply({ content: "❌ Facção não encontrada.", ephemeral: true });
+                        if (f.leaderId !== interaction.user.id && !isAdmin(interaction)) return i.reply({ content: "❌ Apenas líder/admin pode pagar pelo cofre.", ephemeral: true });
+
+                        const raw = await promptOneLine(interaction, { prompt: "Digite: `@usuario valor` (ex.: `@Fulano 1500`).", timeMs: 60000 });
+                        if (!raw) return i.reply({ content: "⏳ Tempo esgotado.", ephemeral: true });
+                        const parts = raw.trim().split(/\s+/);
+                        const targetId = parseUserId(parts[0]);
+                        const amount = Math.max(1, Math.min(1_000_000_000_000, parseAmount(parts[1])));
+                        if (!targetId || !Number.isFinite(amount) || amount <= 0) return i.reply({ content: "❌ Formato inválido.", ephemeral: true });
+
+                        const updatedFaction = await client.factiondb.findOneAndUpdate(
+                            { guildID: interaction.guildId, factionId: myFactionId, treasury: { $gte: amount } },
+                            { $inc: { treasury: -amount } },
+                            { new: true }
+                        );
+                        if (!updatedFaction) return i.reply({ content: "❌ Cofre insuficiente para esse pagamento.", ephemeral: true });
+
+                        await creditWallet(client.userdb, targetId, amount, "faction_treasury_payout", { guildId: interaction.guildId, factionId: myFactionId, by: interaction.user.id }).catch(() => {});
+                        return i.reply({ content: `✅ Pagamento feito: <@${targetId}> recebeu **${formatMoney(amount)}** do cofre.`, ephemeral: true });
                     }
 
                     if (action === "transferir") {
@@ -331,8 +508,11 @@ module.exports = {
                         if (targetId === interaction.user.id) return i.reply({ content: "❌ Você não pode expulsar você mesmo.", ephemeral: true });
                         if (!(f.members || []).some((m) => m.userId === targetId)) return i.reply({ content: "❌ Essa pessoa não é membro da facção.", ephemeral: true });
 
-                        f.members = (f.members || []).filter((m) => m.userId !== targetId);
-                        await f.save().catch(() => {});
+                        const res = await client.factiondb.updateOne(
+                            { guildID: interaction.guildId, factionId: myFactionId, "members.userId": targetId },
+                            { $pull: { members: { userId: targetId } } }
+                        );
+                        if (!res?.modifiedCount) return i.reply({ content: "❌ Não consegui expulsar agora. Tente novamente.", ephemeral: true });
                         await client.blackMarketUserdb.updateOne({ guildID: interaction.guildId, userID: targetId }, { $set: { "faction.factionId": null, "faction.joinedAt": 0 } }).catch(() => {});
                         return i.reply({ content: `✅ <@${targetId}> foi expulso da facção.`, ephemeral: true });
                     }

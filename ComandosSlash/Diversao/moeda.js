@@ -1,4 +1,5 @@
 const Discord = require("discord.js");
+const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
 
 module.exports = {
     name: "moeda",
@@ -31,6 +32,8 @@ module.exports = {
             
             // Se houver aposta, verifica saldo
             if (aposta > 0) {
+                const ok = await ensureEconomyAllowed(client, interaction, interaction.user.id);
+                if (!ok) return;
                 userdb = await client.userdb.getOrCreate(interaction.user.id);
                 
                 if (userdb.economia.money < aposta) {

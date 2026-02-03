@@ -313,9 +313,9 @@ module.exports = {
                         if (paid > 0) await creditWallet(client.userdb, interaction.user.id, paid, "police_bounty", { guildId: interaction.guildId, caseId: c.caseId, seizedValue }).catch(() => {});
 
                         const tdb = await client.userdb.getOrCreate(c.suspectId);
-                        if (!tdb.economia.restrictions) tdb.economia.restrictions = { bannedUntil: 0 };
+                        if (!tdb.economia.restrictions) tdb.economia.restrictions = { bannedUntil: 0, blackMarketBannedUntil: 0, casinoBannedUntil: 0 };
                         const mins = 20 + Math.floor(Math.min(60, seizedValue / 200));
-                        tdb.economia.restrictions.bannedUntil = Math.max(tdb.economia.restrictions.bannedUntil || 0, now + mins * 60 * 1000);
+                        tdb.economia.restrictions.blackMarketBannedUntil = Math.max(tdb.economia.restrictions.blackMarketBannedUntil || 0, now + mins * 60 * 1000);
                         await tdb.save().catch(() => {});
 
                         c.status = "closed";

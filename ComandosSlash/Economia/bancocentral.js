@@ -1,5 +1,6 @@
 const Discord = require("discord.js");
 const { formatMoney, creditWallet, debitWalletIfEnough } = require("../../Utils/economy");
+const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
 
 const DEFAULT_OWNER_ID = process.env.CENTRAL_BANK_OWNER_ID || "589646045756129301";
 
@@ -179,6 +180,10 @@ module.exports = {
             }
 
             if (sub === "depositar") {
+                if (!isOwner(interaction.user.id, eco) && !isAdminMember(interaction)) {
+                    const ok = await ensureEconomyAllowed(client, interaction, interaction.user.id);
+                    if (!ok) return;
+                }
                 const amount = Math.max(1, Math.floor(interaction.options.getInteger("valor") || 0));
                 const motivo = interaction.options.getString("motivo");
                 const updated = await debitWalletIfEnough(

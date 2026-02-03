@@ -123,6 +123,7 @@ module.exports = {
         "Comprar item — negociar mercadoria ilícita",
         "Vender item — vender mercadoria ilícita",
         "Inventário — seus itens ilícitos",
+        "Comprar reputação — dinheiro -> reputação do submundo",
         "Missões — diárias e semanais",
         "Resgatar missão — pegar recompensa",
         "Ranking — lucro do submundo",
@@ -149,6 +150,7 @@ module.exports = {
                     { label: "Comprar item", value: "comprar_item", description: "Comprar mercadoria ilícita" },
                     { label: "Vender item", value: "vender_item", description: "Vender mercadoria ilícita" },
                     { label: "Inventário", value: "inventario", description: "Seus itens ilícitos" },
+                    { label: "Comprar reputação", value: "comprar_rep", description: "Dinheiro -> reputação" },
                     { label: "Missões", value: "missoes", description: "Diárias e semanais" },
                     { label: "Resgatar missão", value: "resgatar", description: "Pegar recompensa" },
                     { label: "Ranking", value: "ranking", description: "Lucro do submundo" },
@@ -199,7 +201,7 @@ module.exports = {
                     if (!mainUser.economia.restrictions) mainUser.economia.restrictions = { bannedUntil: 0, blackMarketBannedUntil: 0, casinoBannedUntil: 0 };
                     const bmBan = Number(mainUser.economia.restrictions.blackMarketBannedUntil || 0);
                     const casinoBan = Number(mainUser.economia.restrictions.casinoBannedUntil || 0);
-                    if (bmBan && now < bmBan && ["comprar_item", "vender_item", "resgatar"].includes(action)) {
+                    if (bmBan && now < bmBan && ["comprar_item", "vender_item", "comprar_rep", "resgatar"].includes(action)) {
                         return i.reply({ content: `⛔ Você está banido do Mercado Negro até <t:${Math.floor(bmBan / 1000)}:R>.`, ephemeral: true });
                     }
                     if (casinoBan && now < casinoBan && action === "caixa") {
@@ -271,6 +273,47 @@ module.exports = {
                             .addField("Reputação", `**${repNow.name}** (${repNow.score} pts)`, true)
                             .addField("Heat", `**${Math.floor(u.heat.level || 0)}**`, true);
                         return i.update({ embeds: [e], components: [row] });
+                    }
+
+                    if (action === "comprar_rep") {
+                        if (!g.config.dailyResetAt) g.config.dailyResetAt = Date.now() + 24 * 60 * 60 * 1000;
+                        if (!g.config.repShop) g.config.repShop = { enabled: true, pricePerRep: 120, maxPerDay: 250 };
+                        if (!u.stats) u.stats = {};
+
+                        const shop = g.config.repShop;
+                        if (!shop.enabled) return i.reply({ content: "❌ Compra de reputação está desativada.", ephemeral: true });
+
+                        const now2 = Date.now();
+                        if (!u.stats.repBoughtResetAt || now2 >= u.stats.repBoughtResetAt) {
+                            u.stats.repBoughtToday = 0;
+                            u.stats.repBoughtResetAt = g.config.dailyResetAt;
+                        }
+                        const bought = Math.max(0, Math.floor(u.stats.repBoughtToday || 0));
+                        const maxPerDay = Math.max(0, Math.floor(shop.maxPerDay || 0));
+                        const remaining = Math.max(0, maxPerDay - bought);
+                        if (remaining <= 0) {
+                            return i.reply({ content: `⛔ Limite diário atingido. Volta em <t:${Math.floor((u.stats.repBoughtResetAt || 0) / 1000)}:R>.`, ephemeral: true });
+                        }
+
+                        const raw = await promptOneLine(interaction, { prompt: `Quantos pontos de reputação comprar? (1-${remaining})`, timeMs: 60000 });
+                        if (!raw) return i.reply({ content: "⏳ Tempo esgotado.", ephemeral: true });
+                        const points = Math.max(1, Math.floor(Number(String(raw).replace(/\./g, "").replace(/,/g, ".")) || 0));
+                        if (!Number.isFinite(points) || points <= 0 || points > remaining) return i.reply({ content: "❌ Quantidade inválida.", ephemeral: true });
+
+                        const pricePerRep = Math.max(1, Math.floor(shop.pricePerRep || 120));
+                        const cost = Math.floor(points * pricePerRep);
+                        const paid = await debitWalletIfEnough(client.userdb, interaction.user.id, cost, "blackmarket_rep_buy", { guildId: interaction.guildId, points });
+                        if (!paid) return i.reply({ content: `❌ Você precisa de ${formatMoney(cost)} na carteira.`, ephemeral: true });
+
+                        ensureRep(u);
+                        u.reputation.score = Math.floor((u.reputation.score || 0) + points);
+                        u.stats.repBoughtToday = bought + points;
+                        u.stats.repBoughtResetAt = g.config.dailyResetAt;
+                        ensureRep(u);
+                        await u.save().catch(() => {});
+                        await g.save().catch(() => {});
+
+                        return i.reply({ content: `✅ Você comprou **${points} rep** por ${formatMoney(cost)}.`, ephemeral: true });
                     }
 
                     if (action === "ranking") {
@@ -459,7 +502,7 @@ module.exports = {
 
                             await g.save().catch(() => {});
                             await u.save().catch(() => {});
-                            return i.reply({ content: `🚨 Interceptado no **${district.name}**. Mercadoria apreendida e **ban econômico** aplicado. (- reputação)`, ephemeral: true });
+                            return i.reply({ content: `🚨 Interceptado no **${district.name}**. Mercadoria apreendida e **ban do Mercado Negro** aplicado. (- reputação)`, ephemeral: true });
                         }
 
                         addInventory(u, itemId, qty);
@@ -588,8 +631,8 @@ module.exports = {
                         if (!debited) return i.reply({ embeds: [errorEmbed("❌ Saldo insuficiente na carteira.")], ephemeral: true });
 
                         const outcome = rollOutcome();
-                        const userdb = await client.userdb.findOne({ userID: interaction.user.id });
-                        if (!userdb.economia.restrictions) userdb.economia.restrictions = { bannedUntil: 0 };
+                        const userdb = await client.userdb.getOrCreate(interaction.user.id);
+                        if (!userdb.economia.restrictions) userdb.economia.restrictions = { bannedUntil: 0, blackMarketBannedUntil: 0, casinoBannedUntil: 0 };
 
                         let resultText = "";
                         let color = "GREY";
@@ -612,7 +655,7 @@ module.exports = {
                             gifQuery = "police caught";
                         } else if (outcome.type === "ban") {
                             const mins = 60;
-                            userdb.economia.restrictions.bannedUntil = Date.now() + mins * 60 * 1000;
+                            userdb.economia.restrictions.casinoBannedUntil = Date.now() + mins * 60 * 1000;
                             userdb.economia.transactions.push({
                                 at: Date.now(),
                                 type: "blackmarket_ban",
@@ -622,7 +665,7 @@ module.exports = {
                             });
                             userdb.economia.transactions = userdb.economia.transactions.slice(-50);
                             await userdb.save();
-                            resultText = `⛔ Você foi banido do sistema econômico por **${mins} minutos**.`;
+                            resultText = `⛔ Você foi banido do **Cassino** por **${mins} minutos**.`;
                             color = "DARK_RED";
                             gifQuery = "police siren";
                         } else {

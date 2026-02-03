@@ -1,5 +1,5 @@
 BOT-YU — LISTA DE COMANDOS
-Gerado em: 03/02/2026, 15:23:25
+Gerado em: 03/02/2026, 15:48:37
 
 Como organizar no servidor (sugestão):
 - Canal #anuncios-evento: anúncios e atrações
@@ -15,8 +15,9 @@ Legenda:
 /config_evento — Hub de Configuração do Evento Submundo (ADM)
   - HUB (ações):
     • Geral — ativar/desativar, canal e @everyone
-    • Probabilidades — raid/escassez/superávit/leilão
+    • Probabilidades — raid/escassez/superávit/leilão/checkpoints
     • Economia & Heat — decay, patrulha base, bônus checkpoint
+    • Reputação — loja de reputação do submundo
 
 /embed — Crie uma embed personalizada
 
@@ -122,6 +123,8 @@ Legenda:
     • Entrar em facção — entrar usando ID
     • Sair da facção — sair da sua gangue
     • Comprar influência — dinheiro -> influência
+    • Depositar no cofre — carteira -> cofre da facção
+    • Pagar membro (cofre) — líder paga alguém com o cofre
     • Transferir liderança — líder passa liderança
     • Expulsar membro — líder remove alguém
     • Deletar facção — líder/admin apaga facção
@@ -142,6 +145,7 @@ Legenda:
     • Comprar item — negociar mercadoria ilícita
     • Vender item — vender mercadoria ilícita
     • Inventário — seus itens ilícitos
+    • Comprar reputação — dinheiro -> reputação do submundo
     • Missões — diárias e semanais
     • Resgatar missão — pegar recompensa
     • Ranking — lucro do submundo

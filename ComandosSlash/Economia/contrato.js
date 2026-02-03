@@ -1,5 +1,6 @@
 const Discord = require("discord.js");
 const { formatMoney, debitWalletIfEnough, creditWallet, errorEmbed } = require("../../Utils/economy");
+const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
 
 function shortId(c) {
     return String(c._id).slice(-6).toUpperCase();
@@ -102,6 +103,8 @@ module.exports = {
         try {
             const sub = interaction.options.getSubcommand();
             const now = Date.now();
+            const ok = await ensureEconomyAllowed(client, interaction, interaction.user.id);
+            if (!ok) return;
 
             if (sub === "criar") {
                 const other = interaction.options.getUser("usuario");

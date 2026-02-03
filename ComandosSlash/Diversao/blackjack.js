@@ -1,5 +1,6 @@
 const Discord = require("discord.js");
 const { getRandomGifUrl } = require("../../Utils/giphy");
+const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
 
 function createDeck(decks = 4) {
     const ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
@@ -114,6 +115,8 @@ module.exports = {
     ],
     run: async (client, interaction) => {
         try {
+            const ok = await ensureEconomyAllowed(client, interaction, interaction.user.id);
+            if (!ok) return;
             const aposta = Math.floor(interaction.options.getNumber("aposta"));
             if (!Number.isFinite(aposta) || aposta <= 0) {
                 return interaction.reply({ content: "❌ Aposta inválida.", ephemeral: true });

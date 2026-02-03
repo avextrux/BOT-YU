@@ -1,4 +1,5 @@
 const Discord = require("discord.js");
+const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
 
 module.exports = {
     name: "roleta",
@@ -25,6 +26,8 @@ module.exports = {
     ],
     run: async (client, interaction) => {
         try {
+            const ok = await ensureEconomyAllowed(client, interaction, interaction.user.id);
+            if (!ok) return;
             const aposta = Math.floor(interaction.options.getNumber("aposta"));
             const corEscolhida = interaction.options.getString("cor");
 

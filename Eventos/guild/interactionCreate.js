@@ -86,6 +86,7 @@ client.on("interactionCreate", async (interaction) => {
           const raid = clamp01(parseFloat(interaction.fields.getTextInputValue('prob_raid')) / 100, 0.05);
           const shortage = clamp01(parseFloat(interaction.fields.getTextInputValue('prob_shortage')) / 100, 0.05);
           const surplus = clamp01(parseFloat(interaction.fields.getTextInputValue('prob_surplus')) / 100, 0.05);
+          const checkpointOp = clamp01(parseFloat(interaction.fields.getTextInputValue('prob_checkpoint_op')) / 100, 0.03);
 
           const g = await client.blackMarketGuilddb.getOrCreate(interaction.guildId);
           if (!g.config) g.config = {};
@@ -93,7 +94,8 @@ client.on("interactionCreate", async (interaction) => {
               discount, 
               raid, 
               shortage, 
-              surplus 
+              surplus,
+              checkpointOp,
           };
           await g.save();
           return interaction.reply({ content: "✅ Probabilidades atualizadas.", ephemeral: true });
@@ -141,6 +143,24 @@ client.on("interactionCreate", async (interaction) => {
           };
           await g.save();
           return interaction.reply({ content: "✅ Desafios de atividade atualizados.", ephemeral: true });
+      }
+
+      if (interaction.customId === 'cfg_modal_rep') {
+          const isAdminMember =
+              interaction.member?.permissions?.has("ADMINISTRATOR") ||
+              interaction.member?.permissions?.has("MANAGE_GUILD");
+          if (!isAdminMember) return interaction.reply({ content: "❌ Apenas administradores.", ephemeral: true });
+
+          const enabledRaw = String(interaction.fields.getTextInputValue('rep_enabled') || "").toLowerCase().trim();
+          const enabled = ["sim", "s", "true", "1", "on"].includes(enabledRaw) ? true : ["nao", "não", "n", "false", "0", "off"].includes(enabledRaw) ? false : true;
+          const price = Math.max(1, Math.floor(Number(interaction.fields.getTextInputValue('rep_price')) || 120));
+          const maxPerDay = Math.max(0, Math.floor(Number(interaction.fields.getTextInputValue('rep_max')) || 250));
+
+          const g = await client.blackMarketGuilddb.getOrCreate(interaction.guildId);
+          if (!g.config) g.config = {};
+          g.config.repShop = { enabled, pricePerRep: price, maxPerDay };
+          await g.save();
+          return interaction.reply({ content: "✅ Loja de reputação atualizada.", ephemeral: true });
       }
   }
 
