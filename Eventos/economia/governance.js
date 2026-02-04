@@ -1,5 +1,5 @@
 const client = require("../../index");
-const Discord = require("discord.js");
+const Discord = require("../../Utils/djs");
 
 function getVoteCount(votes, userId) {
     if (!votes) return 0;
@@ -95,7 +95,7 @@ async function expireCrises() {
     }
 }
 
-client.on("ready", () => {
+client.on(Discord.Events?.ClientReady || "ready", () => {
     setInterval(() => {
         finalizeElections();
         expireCrises();

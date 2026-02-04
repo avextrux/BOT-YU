@@ -1,10 +1,13 @@
 const Discord = require("discord.js");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
+const logger = require("../../Utils/logger");
+const { replyOrEdit } = require("../../Utils/commandKit");
 
 module.exports = {
     name: "bicho",
     description: "Jogue no Jogo do Bicho e tente a sorte!",
     type: 'CHAT_INPUT',
+    autoDefer: { ephemeral: true },
     options: [
         {
             name: "aposta",
@@ -32,19 +35,19 @@ module.exports = {
     ],
     run: async (client, interaction) => {
         try {
-            const ok = await ensureEconomyAllowed(client, interaction, interaction.user.id);
-            if (!ok) return;
+            const gate = await ensureEconomyAllowed(client, interaction, interaction.user.id);
+            if (!gate.ok) return replyOrEdit(interaction, { embeds: [gate.embed], ephemeral: true });
             const aposta = Math.floor(interaction.options.getNumber("aposta"));
             const bichoEscolhido = interaction.options.getInteger("bicho");
 
             if (aposta <= 0) {
-                return interaction.reply({ content: "❌ A aposta deve ser maior que 0.", ephemeral: true });
+                return replyOrEdit(interaction, { content: "❌ A aposta deve ser maior que 0.", ephemeral: true });
             }
 
             const userdb = await client.userdb.getOrCreate(interaction.user.id);
 
             if (userdb.economia.money < aposta) {
-                return interaction.reply({ content: `❌ Você não tem R$ ${aposta} na carteira.`, ephemeral: true });
+                return replyOrEdit(interaction, { content: `❌ Você não tem R$ ${aposta} na carteira.`, ephemeral: true });
             }
 
             const bichos = [
@@ -79,11 +82,11 @@ module.exports = {
             }
 
             await userdb.save();
-            interaction.reply({ embeds: [embed] });
+            return replyOrEdit(interaction, { embeds: [embed], ephemeral: true });
 
         } catch (err) {
-            console.error(err);
-            interaction.reply({ content: "Erro ao realizar o jogo.", ephemeral: true });
+            logger.error("Erro no jogo do bicho", { error: String(err?.message || err) });
+            replyOrEdit(interaction, { content: "Erro ao realizar o jogo.", ephemeral: true }).catch(() => {});
         }
     }
 };

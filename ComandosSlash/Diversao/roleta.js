@@ -1,10 +1,13 @@
 const Discord = require("discord.js");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
+const logger = require("../../Utils/logger");
+const { replyOrEdit } = require("../../Utils/commandKit");
 
 module.exports = {
     name: "roleta",
     description: "Aposte na roleta (Vermelho, Preto ou Verde)",
     type: 'CHAT_INPUT',
+    autoDefer: { ephemeral: true },
     options: [
         {
             name: "aposta",
@@ -26,15 +29,15 @@ module.exports = {
     ],
     run: async (client, interaction) => {
         try {
-            const ok = await ensureEconomyAllowed(client, interaction, interaction.user.id);
-            if (!ok) return;
+            const gate = await ensureEconomyAllowed(client, interaction, interaction.user.id);
+            if (!gate.ok) return replyOrEdit(interaction, { embeds: [gate.embed], ephemeral: true });
             const aposta = Math.floor(interaction.options.getNumber("aposta"));
             const corEscolhida = interaction.options.getString("cor");
 
-            if (aposta <= 0) return interaction.reply({ content: "❌ Aposta inválida.", ephemeral: true });
+            if (aposta <= 0) return replyOrEdit(interaction, { content: "❌ Aposta inválida.", ephemeral: true });
 
             const userdb = await client.userdb.getOrCreate(interaction.user.id);
-            if (userdb.economia.money < aposta) return interaction.reply({ content: "❌ Dinheiro insuficiente.", ephemeral: true });
+            if (userdb.economia.money < aposta) return replyOrEdit(interaction, { content: "❌ Dinheiro insuficiente.", ephemeral: true });
 
             // Lógica da Roleta
             // 0 (Verde), 1-7 (Vermelho), 8-14 (Preto) -> Simplificado
@@ -85,11 +88,11 @@ module.exports = {
             }
 
             await userdb.save();
-            interaction.reply({ embeds: [embed] });
+            return replyOrEdit(interaction, { embeds: [embed], ephemeral: true });
 
         } catch (err) {
-            console.error(err);
-            interaction.reply({ content: "Erro na roleta.", ephemeral: true });
+            logger.error("Erro na roleta", { error: String(err?.message || err) });
+            replyOrEdit(interaction, { content: "Erro na roleta.", ephemeral: true }).catch(() => {});
         }
     }
 };

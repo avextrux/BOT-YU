@@ -1,4 +1,7 @@
 const client = require("../../index");
+const logger = require("../../Utils/logger");
+
+let lastDbErrorAt = 0;
 
 client.on("messageCreate", async (message) => {
     if (!message || !message.guild) return;
@@ -12,6 +15,10 @@ client.on("messageCreate", async (message) => {
             { upsert: true }
         );
     } catch (err) {
-        console.error("Erro ao contar mensagem:", err);
+        const now = Date.now();
+        if (now - lastDbErrorAt > 30000) {
+            lastDbErrorAt = now;
+            logger.error("Erro ao contar mensagem", { error: String(err?.message || err) });
+        }
     }
 });

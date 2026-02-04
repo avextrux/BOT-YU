@@ -69,7 +69,7 @@ module.exports = {
 
             const msg = await interaction.reply({ embeds: [embed], components: [row], fetchReply: true, ephemeral: true });
 
-            const collector = msg.createMessageComponentCollector({ componentType: 'SELECT_MENU', idle: 120000 });
+            const collector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType?.StringSelect || "SELECT_MENU", idle: 120000 });
 
             collector.on('collect', async i => {
                 if (i.user.id !== interaction.user.id) return safe(i.reply({ content: "Menu pessoal.", ephemeral: true }));
@@ -174,7 +174,7 @@ module.exports = {
             });
 
             // Button Collector for sub-actions
-            const btnCollector = msg.createMessageComponentCollector({ componentType: 'BUTTON', idle: 120000 });
+            const btnCollector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType?.Button || "BUTTON", idle: 120000 });
             
             btnCollector.on('collect', async i => {
                 if (i.user.id !== interaction.user.id) return safe(i.reply({ content: "Menu pessoal.", ephemeral: true }));

@@ -1,6 +1,8 @@
 const Discord = require("discord.js");
 const { formatMoney, debitWalletIfEnough, creditWallet, errorEmbed } = require("../../Utils/economy");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
+const logger = require("../../Utils/logger");
+const { replyOrEdit } = require("../../Utils/commandKit");
 
 function shortId(c) {
     return String(c._id).slice(-6).toUpperCase();
@@ -103,8 +105,8 @@ module.exports = {
         try {
             const sub = interaction.options.getSubcommand();
             const now = Date.now();
-            const ok = await ensureEconomyAllowed(client, interaction, interaction.user.id);
-            if (!ok) return;
+            const gate = await ensureEconomyAllowed(client, interaction, interaction.user.id);
+            if (!gate.ok) return replyOrEdit(interaction, { embeds: [gate.embed], ephemeral: true });
 
             if (sub === "criar") {
                 const other = interaction.options.getUser("usuario");
@@ -287,7 +289,7 @@ module.exports = {
                             .addFields({ name: "Votação", value: `🅰️ ${fresh.dispute.votesA} | 🅱️ ${fresh.dispute.votesB}` });
                         await i.update({ embeds: [updatedEmbed] }).catch(() => {});
                     } catch (e) {
-                        console.error(e);
+                        logger.error("Erro ao votar em arbitragem", { error: String(e?.message || e) });
                         i.reply({ content: "Erro ao votar.", ephemeral: true }).catch(() => {});
                     }
                 });
@@ -340,13 +342,8 @@ module.exports = {
             }
 
         } catch (err) {
-            console.error(err);
-            if (interaction.deferred || interaction.replied) {
-                interaction.editReply({ content: "Erro no contrato.", embeds: [], components: [] }).catch(() => {});
-            } else {
-                interaction.reply({ content: "Erro no contrato.", ephemeral: true }).catch(() => {});
-            }
+            logger.error("Erro no contrato", { error: String(err?.message || err) });
+            replyOrEdit(interaction, { content: "Erro no contrato.", ephemeral: true, embeds: [], components: [] }).catch(() => {});
         }
     }
 };
-

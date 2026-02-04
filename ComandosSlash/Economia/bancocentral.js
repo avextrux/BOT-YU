@@ -1,13 +1,18 @@
 const Discord = require("discord.js");
 const { formatMoney, creditWallet, debitWalletIfEnough } = require("../../Utils/economy");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
+const logger = require("../../Utils/logger");
+const { replyOrEdit } = require("../../Utils/commandKit");
+const { statusEmbed } = require("../../Utils/embeds");
 
 const DEFAULT_OWNER_ID = process.env.CENTRAL_BANK_OWNER_ID || "589646045756129301";
+const DEFAULT_INFINITE = String(process.env.CENTRAL_BANK_INFINITE_FUNDS || "true").toLowerCase() !== "false";
 
 function ensureCentralBankDefaults(eco) {
     if (!eco.centralBank) eco.centralBank = {};
     if (!eco.centralBank.ownerId) eco.centralBank.ownerId = DEFAULT_OWNER_ID;
     if (!Array.isArray(eco.centralBank.managers)) eco.centralBank.managers = [];
+    if (eco.centralBank.infiniteFunds === undefined || eco.centralBank.infiniteFunds === null) eco.centralBank.infiniteFunds = DEFAULT_INFINITE;
     if (!eco.policy) eco.policy = {};
     if (eco.policy.treasury === undefined || eco.policy.treasury === null) eco.policy.treasury = 0;
 }
@@ -45,6 +50,7 @@ module.exports = {
     name: "bancocentral",
     description: "Banco Central do servidor (tesouro e gestão do evento)",
     type: "CHAT_INPUT",
+    autoDefer: { ephemeral: true },
     hubActions: [
         "status — ver tesouro e gestão",
         "configurar_dono — definir dono (admin)",
@@ -131,27 +137,27 @@ module.exports = {
                     .setColor("BLURPLE")
                     .addFields(
                         { name: "Dono", value: `<@${ownerId}>`, inline: true },
-                        { name: "Tesouro", value: formatMoney(eco.policy.treasury || 0), inline: true },
+                        { name: "Tesouro", value: eco.centralBank.infiniteFunds ? "∞" : formatMoney(eco.policy.treasury || 0), inline: true },
                         { name: "Gerentes (Top 15)", value: list, inline: false }
                     )
                     .setFooter({ text: "O tesouro acumula impostos e pode financiar eventos/prêmios." });
 
-                return interaction.reply({ embeds: [embed] });
+                return replyOrEdit(interaction, { embeds: [embed] });
             }
 
             if (sub === "configurar_dono") {
                 if (!isAdminMember(interaction) && !isOwner(interaction.user.id, eco)) {
-                    return interaction.reply({ content: "❌ Apenas admin ou dono atual pode alterar.", ephemeral: true });
+                    return replyOrEdit(interaction, { embeds: [statusEmbed("error", "Apenas admin ou dono atual pode alterar.", { title: "Permissão" })], ephemeral: true });
                 }
                 const user = interaction.options.getUser("usuario");
                 eco.centralBank.ownerId = user.id;
                 await eco.save();
-                return interaction.reply({ content: `✅ Dono do Banco Central definido para ${user}.`, ephemeral: true });
+                return replyOrEdit(interaction, { embeds: [statusEmbed("success", `Dono do Banco Central definido para ${user}.`, { title: "Banco Central" })], ephemeral: true });
             }
 
             if (sub === "gerente_adicionar") {
                 if (!isAdminMember(interaction) && !isOwner(interaction.user.id, eco)) {
-                    return interaction.reply({ content: "❌ Apenas admin ou dono pode gerenciar gerentes.", ephemeral: true });
+                    return replyOrEdit(interaction, { embeds: [statusEmbed("error", "Apenas admin ou dono pode gerenciar gerentes.", { title: "Permissão" })], ephemeral: true });
                 }
                 const user = interaction.options.getUser("usuario");
                 const scope = interaction.options.getString("escopo");
@@ -166,23 +172,23 @@ module.exports = {
                     existing.scopes = Array.from(cur);
                 }
                 await eco.save();
-                return interaction.reply({ content: `✅ Gerente atualizado: ${user} (${scope}).`, ephemeral: true });
+                return replyOrEdit(interaction, { embeds: [statusEmbed("success", `Gerente atualizado: ${user} (${scope}).`, { title: "Banco Central" })], ephemeral: true });
             }
 
             if (sub === "gerente_remover") {
                 if (!isAdminMember(interaction) && !isOwner(interaction.user.id, eco)) {
-                    return interaction.reply({ content: "❌ Apenas admin ou dono pode gerenciar gerentes.", ephemeral: true });
+                    return replyOrEdit(interaction, { embeds: [statusEmbed("error", "Apenas admin ou dono pode gerenciar gerentes.", { title: "Permissão" })], ephemeral: true });
                 }
                 const user = interaction.options.getUser("usuario");
                 eco.centralBank.managers = (eco.centralBank.managers || []).filter((m) => m.userId !== user.id);
                 await eco.save();
-                return interaction.reply({ content: `✅ ${user} removido(a) da gestão do Banco Central.`, ephemeral: true });
+                return replyOrEdit(interaction, { embeds: [statusEmbed("success", `${user} removido(a) da gestão do Banco Central.`, { title: "Banco Central" })], ephemeral: true });
             }
 
             if (sub === "depositar") {
                 if (!isOwner(interaction.user.id, eco) && !isAdminMember(interaction)) {
-                    const ok = await ensureEconomyAllowed(client, interaction, interaction.user.id);
-                    if (!ok) return;
+                    const gate = await ensureEconomyAllowed(client, interaction, interaction.user.id);
+                    if (!gate.ok) return replyOrEdit(interaction, { embeds: [gate.embed], ephemeral: true });
                 }
                 const amount = Math.max(1, Math.floor(interaction.options.getInteger("valor") || 0));
                 const motivo = interaction.options.getString("motivo");
@@ -193,27 +199,27 @@ module.exports = {
                     "central_bank_deposit",
                     { guildId: interaction.guildId, motivo: motivo || null }
                 );
-                if (!updated) return interaction.reply({ content: `❌ Saldo insuficiente na carteira para depositar ${formatMoney(amount)}.`, ephemeral: true });
+                if (!updated) return replyOrEdit(interaction, { embeds: [statusEmbed("error", `Saldo insuficiente na carteira para depositar ${formatMoney(amount)}.`, { title: "Banco Central" })], ephemeral: true });
 
                 eco.policy.treasury = Math.floor((eco.policy.treasury || 0) + amount);
                 await eco.save();
-                return interaction.reply({ content: `✅ Depósito efetuado: ${formatMoney(amount)} no tesouro.`, ephemeral: true });
+                return replyOrEdit(interaction, { embeds: [statusEmbed("success", `Depósito efetuado: ${formatMoney(amount)} no tesouro.`, { title: "Banco Central" })], ephemeral: true });
             }
 
             if (sub === "pagar") {
                 if (!canManage(interaction.user.id, interaction, eco, "tesouro")) {
-                    return interaction.reply({ content: "❌ Você não tem permissão para pagar pelo tesouro.", ephemeral: true });
+                    return replyOrEdit(interaction, { embeds: [statusEmbed("error", "Você não tem permissão para pagar pelo tesouro.", { title: "Permissão" })], ephemeral: true });
                 }
 
                 const target = interaction.options.getUser("usuario");
                 const amount = Math.max(1, Math.floor(interaction.options.getInteger("valor") || 0));
                 const motivo = interaction.options.getString("motivo");
 
-                const infinite = isOwner(interaction.user.id, eco) || isAdminMember(interaction);
-                if (!infinite && (eco.policy.treasury || 0) < amount) {
-                    return interaction.reply({ content: `❌ Tesouro insuficiente. Saldo: ${formatMoney(eco.policy.treasury || 0)}.`, ephemeral: true });
-                }
+                const infinite = Boolean(eco.centralBank.infiniteFunds);
                 if (!infinite) {
+                    if ((eco.policy.treasury || 0) < amount) {
+                        return replyOrEdit(interaction, { embeds: [statusEmbed("error", `Tesouro insuficiente. Saldo: ${formatMoney(eco.policy.treasury || 0)}.`, { title: "Banco Central" })], ephemeral: true });
+                    }
                     eco.policy.treasury = Math.floor((eco.policy.treasury || 0) - amount);
                     await eco.save();
                 }
@@ -236,11 +242,11 @@ module.exports = {
                         { name: "Motivo", value: motivo || "-", inline: false }
                     );
 
-                return interaction.reply({ embeds: [embed] });
+                return replyOrEdit(interaction, { embeds: [embed] });
             }
         } catch (err) {
-            console.error(err);
-            interaction.reply({ content: "Erro no Banco Central.", ephemeral: true }).catch(() => {});
+            logger.error("Erro no Banco Central", { error: String(err?.message || err) });
+            replyOrEdit(interaction, { embeds: [statusEmbed("error", "Erro no Banco Central.", { title: "Erro" })], ephemeral: true }).catch(() => {});
         }
     },
 };

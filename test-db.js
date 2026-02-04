@@ -1,10 +1,14 @@
 const mongoose = require("mongoose");
-const config = require("./Config.json");
+const { getMongoUrl } = require("./Utils/config");
 
-const mongoUrl = process.env.MONGO_URL || process.env.MONGODB_URI || config.MongoURL;
+const mongoUrl = getMongoUrl();
 
 console.log("Tentando conectar ao MongoDB...");
-console.log("URL:", mongoUrl.replace(/:([^:@]+)@/, ":****@")); // Esconde a senha no log
+if (!mongoUrl) {
+    console.error("❌ MongoURL ausente. Configure MONGO_URL/MONGODB_URI ou Config.json.");
+    process.exit(1);
+}
+console.log("URL:", mongoUrl.replace(/:([^:@]+)@/, ":****@"));
 
 mongoose.connect(mongoUrl)
     .then(() => {

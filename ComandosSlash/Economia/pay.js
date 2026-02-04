@@ -2,6 +2,8 @@ const Discord = require("discord.js");
 const { getRandomGifUrl } = require("../../Utils/giphy");
 const { formatMoney, debitWalletIfEnough, creditWallet, errorEmbed } = require("../../Utils/economy");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
+const logger = require("../../Utils/logger");
+const { replyOrEdit } = require("../../Utils/commandKit");
 
 module.exports = {
     name: "pay",
@@ -145,8 +147,8 @@ module.exports = {
             });
 
         } catch (err) {
-            console.error(err);
-            interaction.reply({ content: "Erro ao processar pagamento.", ephemeral: true });
+            logger.error("Erro ao processar pagamento", { error: String(err?.message || err) });
+            replyOrEdit(interaction, { content: "Erro ao processar pagamento.", ephemeral: true }).catch(() => {});
         }
     }
 };

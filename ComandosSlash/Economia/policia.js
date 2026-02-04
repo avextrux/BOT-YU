@@ -5,6 +5,9 @@ const { getPolice, isChief, isOfficer } = require("../../Utils/police");
 const { DISTRICTS } = require("../../Utils/blackMarketEngine");
 const { syncMissions, parseMissionId, missionTitle, missionRewards, applyMissionProgress } = require("../../Utils/blackMarketMissions");
 const { ensureTerritories, applyPoliceInfluence } = require("../../Utils/territoryEngine");
+const { safe, promptOneLine, promptModal } = require("../../Utils/interactions");
+const logger = require("../../Utils/logger");
+const { replyOrEdit } = require("../../Utils/commandKit");
 
 function canAdmin(interaction) {
     return (
@@ -20,27 +23,6 @@ function parseUserId(raw) {
     const only = s.match(/^(\d{16,25})$/);
     if (only) return only[1];
     return null;
-}
-
-async function safe(promise) {
-    try {
-        return await promise;
-    } catch (e) {
-        if (e?.code === 10062 || e?.code === 40060) return null;
-        throw e;
-    }
-}
-
-async function promptOneLine(interactionLike, { prompt, timeMs = 60000 }) {
-    if (!interactionLike.channel || typeof interactionLike.channel.awaitMessages !== "function") return null;
-    await interactionLike.followUp({ content: prompt, ephemeral: true }).catch(() => {});
-    const filter = (m) => m.author?.id === interactionLike.user.id;
-    const collected = await interactionLike.channel.awaitMessages({ filter, max: 1, time: timeMs });
-    const msg = collected.first();
-    if (!msg) return null;
-    const value = msg.content;
-    msg.delete().catch(() => {});
-    return value;
 }
 
 function getOfficerStats(police, userId) {
@@ -132,12 +114,48 @@ module.exports = {
                 .addField("Seu status", isMeOfficer ? "✅ Polícia" : "⚠️ Civil", true);
 
             const msg = await interaction.reply({ embeds: [home], components: [row], fetchReply: true, ephemeral: true });
-            const collector = msg.createMessageComponentCollector({ componentType: "SELECT_MENU", idle: 120000 });
+            const collector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType?.StringSelect || "SELECT_MENU", idle: 120000 });
 
             collector.on("collect", async (i) => {
                 try {
                     if (i.user.id !== interaction.user.id) return safe(i.reply({ content: "❌ Esse menu é do autor do comando.", ephemeral: true }));
                     const action = i.values[0];
+                    if (action === "sair") {
+                        const pol = await getPolice(client, interaction.guildId);
+                        const meIsChief = isChief(pol, interaction.user.id);
+                        const meIsOfficer = isOfficer(pol, interaction.user.id);
+                        if (!meIsOfficer) return safe(i.reply({ content: "❌ Você não é policial.", ephemeral: true }));
+                        if (meIsChief) return safe(i.reply({ content: "❌ O Chefe não pode sair. Transfira a chefia ou peça ao Admin.", ephemeral: true }));
+
+                        const res = await promptModal(i, {
+                            title: "Sair da Polícia",
+                            customIdPrefix: "policia_sair",
+                            timeMs: 45000,
+                            inputs: [
+                                {
+                                    id: "confirm",
+                                    label: "Digite SAIR para confirmar",
+                                    placeholder: "SAIR",
+                                    required: true,
+                                    maxLength: 16,
+                                },
+                            ],
+                        });
+
+                        if (!res) return null;
+                        const { modalInteraction, values } = res;
+                        const confirm = String(values.confirm || "").trim().toUpperCase();
+                        await safe(modalInteraction.deferReply({ ephemeral: true }));
+                        if (confirm !== "SAIR") return safe(modalInteraction.editReply({ content: "❌ Cancelado." }));
+
+                        const polNow = await getPolice(client, interaction.guildId);
+                        if (!polNow) return safe(modalInteraction.editReply({ content: "❌ Polícia indisponível no momento." }));
+                        if (isChief(polNow, interaction.user.id)) return safe(modalInteraction.editReply({ content: "❌ O Chefe não pode sair. Transfira a chefia ou peça ao Admin." }));
+                        polNow.officers = (polNow.officers || []).filter((id) => id !== interaction.user.id);
+                        await polNow.save().catch(() => {});
+                        return safe(modalInteraction.editReply({ content: "✅ Você saiu da Polícia." }));
+                    }
+
                     await safe(i.deferUpdate());
 
                     const gate = await ensureEconomyAllowed(client, interaction, interaction.user.id);
@@ -182,18 +200,6 @@ module.exports = {
                         pol.requests.push({ at: Date.now(), userId: interaction.user.id, reason: (reason || "").slice(0, 140), status: "pending", decidedAt: 0, decidedBy: null });
                         await pol.save().catch(() => {});
                         return safe(i.followUp({ content: "✅ Pedido enviado. Aguarde o chefe/aprovação.", ephemeral: true }));
-                    }
-
-                    if (action === "sair") {
-                        if (!meIsOfficer) return safe(i.followUp({ content: "❌ Você não é policial.", ephemeral: true }));
-                        if (meIsChief) return safe(i.followUp({ content: "❌ O Chefe não pode sair. Transfira a chefia ou peça ao Admin.", ephemeral: true }));
-                        
-                        const confirm = await promptOneLine(i, { prompt: "Digite **SAIR** para confirmar sua saída da corporação.", timeMs: 30000 });
-                        if (!confirm || confirm.toUpperCase() !== "SAIR") return safe(i.followUp({ content: "❌ Cancelado.", ephemeral: true }));
-
-                        pol.officers = (pol.officers || []).filter(id => id !== interaction.user.id);
-                        await pol.save().catch(() => {});
-                        return safe(i.followUp({ content: "✅ Você saiu da Polícia.", ephemeral: true }));
                     }
 
                     if (["pedidos", "aceitar", "recusar"].includes(action)) {
@@ -624,8 +630,8 @@ module.exports = {
                         return safe(i.followUp({ content: `✅ Missão resgatada: **${formatMoney(paid)}**.`, ephemeral: true }));
                     }
                 } catch (err) {
-                    console.error(err);
-                    i.followUp({ content: "Erro no hub da Polícia.", ephemeral: true }).catch(() => {});
+                    logger.error("Erro no hub da Polícia", { error: String(err?.message || err) });
+                    safe(i.followUp({ content: "Erro no hub da Polícia.", ephemeral: true })).catch(() => {});
                 }
             });
 
@@ -635,8 +641,8 @@ module.exports = {
                 interaction.editReply({ components: [disabledRow] }).catch(() => {});
             });
         } catch (err) {
-            console.error(err);
-            interaction.reply({ content: "Erro na polícia.", ephemeral: true }).catch(() => {});
+            logger.error("Erro na polícia", { error: String(err?.message || err) });
+            replyOrEdit(interaction, { content: "Erro na polícia.", ephemeral: true }).catch(() => {});
         }
     },
 };

@@ -1,10 +1,13 @@
 const Discord = require("discord.js");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
+const logger = require("../../Utils/logger");
+const { replyOrEdit } = require("../../Utils/commandKit");
 
 module.exports = {
     name: "moeda",
     description: "Jogue cara ou coroa e aposte seu dinheiro!",
     type: 'CHAT_INPUT',
+    autoDefer: { ephemeral: true },
     options: [
         {
             name: "escolha",
@@ -32,12 +35,12 @@ module.exports = {
             
             // Se houver aposta, verifica saldo
             if (aposta > 0) {
-                const ok = await ensureEconomyAllowed(client, interaction, interaction.user.id);
-                if (!ok) return;
+                const gate = await ensureEconomyAllowed(client, interaction, interaction.user.id);
+                if (!gate.ok) return replyOrEdit(interaction, { embeds: [gate.embed], ephemeral: true });
                 userdb = await client.userdb.getOrCreate(interaction.user.id);
                 
                 if (userdb.economia.money < aposta) {
-                    return interaction.reply({ 
+                    return replyOrEdit(interaction, { 
                         embeds: [new Discord.MessageEmbed().setColor("RED").setDescription(`❌ Você não tem **R$ ${aposta}** na carteira para apostar.`)], 
                         ephemeral: true 
                     });
@@ -72,11 +75,11 @@ module.exports = {
                 embed.setFooter({ text: "Use /moeda [escolha] [aposta] para valer dinheiro!" });
             }
 
-            interaction.reply({ embeds: [embed] });
+            return replyOrEdit(interaction, { embeds: [embed], ephemeral: true });
 
         } catch (err) {
-            console.error(err);
-            interaction.reply({ content: "Erro ao jogar a moeda.", ephemeral: true });
+            logger.error("Erro ao jogar moeda", { error: String(err?.message || err) });
+            replyOrEdit(interaction, { content: "Erro ao jogar a moeda.", ephemeral: true }).catch(() => {});
         }
     }
 };

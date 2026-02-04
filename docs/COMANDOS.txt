@@ -1,5 +1,5 @@
 BOT-YU — LISTA DE COMANDOS
-Gerado em: 03/02/2026, 15:48:37
+Gerado em: 04/02/2026, 16:48:01
 
 Como organizar no servidor (sugestão):
 - Canal #anuncios-evento: anúncios e atrações
@@ -119,8 +119,8 @@ Legenda:
     • Minha facção — status e membros
     • Listar facções — top facções do servidor
     • Territórios — controle territorial por distrito
-    • Criar facção — criar sua gangue
-    • Entrar em facção — entrar usando ID
+    • Criar facção — criar sua gangue (nome e tag)
+    • Entrar em facção — entrar por ID/tag/nome
     • Sair da facção — sair da sua gangue
     • Comprar influência — dinheiro -> influência
     • Depositar no cofre — carteira -> cofre da facção
@@ -146,6 +146,9 @@ Legenda:
     • Vender item — vender mercadoria ilícita
     • Inventário — seus itens ilícitos
     • Comprar reputação — dinheiro -> reputação do submundo
+    • Assalto — ganhar dinheiro sujo (alerta policial)
+    • Tráfico — rota de entrega (alerta policial)
+    • Lavagem (fachada) — igreja/ong/oficina (dinheiro sujo -> limpo)
     • Missões — diárias e semanais
     • Resgatar missão — pegar recompensa
     • Ranking — lucro do submundo
@@ -161,12 +164,15 @@ Legenda:
   - HUB (ações):
     • Status — chefe, oficiais e seu status
     • Candidatar — entrar para a polícia
+    • Sair da polícia — deixar a corporação
     • Pedidos (chefe) — ver pendentes
     • Aceitar pedido (chefe) — aprovar candidato
     • Recusar pedido (chefe) — recusar candidato
     • Definir chefe (ADM) — admin define chefe
     • Patrulhar — buscar pistas e casos
     • Checkpoint — aumenta interceptações
+    • Alertas — assaltos/tráfico/lavagem em andamento
+    • Intervir — tentar interromper (por ID do caso)
     • Casos — listar abertos
     • Ver caso — detalhes
     • Investigar caso — avançar progresso

@@ -1,5 +1,5 @@
 const client = require("../../index");
-const Discord = require("discord.js");
+const Discord = require("../../Utils/djs");
 
 async function trySendToChannel(channelId, payload) {
     if (!channelId) return false;
@@ -69,7 +69,7 @@ async function tick() {
     }
 }
 
-client.on("ready", () => {
+client.on(Discord.Events?.ClientReady || "ready", () => {
     setInterval(() => {
         tick();
     }, 5 * 60 * 1000);

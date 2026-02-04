@@ -1,5 +1,7 @@
 const Discord = require("discord.js");
 const { formatMoney } = require("../../Utils/economy");
+const logger = require("../../Utils/logger");
+const { replyOrEdit } = require("../../Utils/commandKit");
 
 module.exports = {
     name: "atm",
@@ -43,8 +45,8 @@ module.exports = {
 
             interaction.reply({ embeds: [embed] });
         } catch (err) {
-            console.error(err);
-            interaction.reply({ content: "Erro ao consultar saldo.", ephemeral: true });
+            logger.error("Erro ao consultar saldo (atm)", { error: String(err?.message || err) });
+            replyOrEdit(interaction, { content: "Erro ao consultar saldo.", ephemeral: true }).catch(() => {});
         }
     }
 };

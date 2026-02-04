@@ -2,6 +2,8 @@ const Discord = require("discord.js");
 const { getRandomGifUrl } = require("../../Utils/giphy");
 const { formatMoney } = require("../../Utils/economy");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
+const logger = require("../../Utils/logger");
+const { replyOrEdit } = require("../../Utils/commandKit");
 
 module.exports = {
     name: "work",
@@ -105,8 +107,8 @@ module.exports = {
             interaction.reply({ embeds: [embed] });
 
         } catch (err) {
-            console.error(err);
-            interaction.reply({ content: "Erro ao trabalhar.", ephemeral: true });
+            logger.error("Erro ao trabalhar", { error: String(err?.message || err) });
+            replyOrEdit(interaction, { content: "Erro ao trabalhar.", ephemeral: true }).catch(() => {});
         }
     }
 };

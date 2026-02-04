@@ -1,9 +1,13 @@
 const { MessageEmbed, Permissions } = require("discord.js");
+const logger = require("../../Utils/logger");
+const { replyOrEdit, requireUserPerms, requireBotPerms } = require("../../Utils/commandKit");
+const { statusEmbed } = require("../../Utils/embeds");
 
 module.exports = {
     name: "clear",
     description: "Limpa mensagens do chat.",
     type: "CHAT_INPUT",
+    autoDefer: { ephemeral: true },
     options: [
         {
             name: "quantidade",
@@ -16,23 +20,26 @@ module.exports = {
     ],
     run: async (client, interaction) => {
         try {
-            if (!interaction.member.permissions.has(Permissions.FLAGS.MANAGE_MESSAGES)) {
-                return interaction.reply({ content: "Você não tem permissão para usar este comando.", ephemeral: true });
-            }
+            const uPerm = requireUserPerms(interaction, Permissions.FLAGS.MANAGE_MESSAGES, { message: "Você não tem permissão para usar este comando." });
+            if (!uPerm.ok) return replyOrEdit(interaction, uPerm.payload);
+            const bPerm = await requireBotPerms(interaction, [Permissions.FLAGS.MANAGE_MESSAGES, Permissions.FLAGS.READ_MESSAGE_HISTORY], { message: "Eu não tenho permissão para limpar mensagens neste canal." });
+            if (!bPerm.ok) return replyOrEdit(interaction, bPerm.payload);
 
             const amount = interaction.options.getInteger("quantidade");
+            if (!amount || amount < 1 || amount > 100) return replyOrEdit(interaction, { embeds: [statusEmbed("error", "Quantidade inválida (1-100).", { title: "Clear" })], ephemeral: true });
 
-            await interaction.channel.bulkDelete(amount, true);
+            const deleted = await interaction.channel.bulkDelete(amount, true);
+            const count = deleted?.size ?? amount;
 
             const embed = new MessageEmbed()
                 .setColor("GREEN")
-                .setDescription(`🧹 **${amount}** mensagens foram limpas com sucesso!`);
+                .setDescription(`🧹 **${count}** mensagens foram limpas com sucesso!`);
 
-            interaction.reply({ embeds: [embed], ephemeral: true });
+            return replyOrEdit(interaction, { embeds: [embed], ephemeral: true });
 
         } catch (err) {
-            console.error(err);
-            interaction.reply({ content: "Erro ao tentar limpar mensagens. Verifique se tenho permissão ou se as mensagens são muito antigas (mais de 14 dias).", ephemeral: true });
+            logger.error("Erro ao limpar mensagens", { error: String(err?.message || err) });
+            replyOrEdit(interaction, { embeds: [statusEmbed("error", "Erro ao tentar limpar mensagens. Verifique permissões e se as mensagens não têm mais de 14 dias.", { title: "Clear" })], ephemeral: true }).catch(() => {});
         }
     },
 };

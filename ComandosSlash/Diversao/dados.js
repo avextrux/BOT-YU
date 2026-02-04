@@ -1,10 +1,13 @@
 const Discord = require("discord.js");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
+const logger = require("../../Utils/logger");
+const { replyOrEdit } = require("../../Utils/commandKit");
 
 module.exports = {
     name: "dados",
     description: "Role os dados (com ou sem aposta)",
     type: 'CHAT_INPUT',
+    autoDefer: { ephemeral: true },
     options: [
         {
             name: "lados",
@@ -29,15 +32,15 @@ module.exports = {
             const lados = interaction.options.getInteger("lados") || 6;
             const aposta = Math.floor(interaction.options.getNumber("aposta") || 0);
             if (aposta > 0) {
-                const ok = await ensureEconomyAllowed(client, interaction, interaction.user.id);
-                if (!ok) return;
+                const gate = await ensureEconomyAllowed(client, interaction, interaction.user.id);
+                if (!gate.ok) return replyOrEdit(interaction, { embeds: [gate.embed], ephemeral: true });
             }
 
             let userdb;
             if (aposta > 0) {
                 userdb = await client.userdb.getOrCreate(interaction.user.id);
                 if ((userdb.economia.money || 0) < aposta) {
-                    return interaction.reply({ content: "❌ Dinheiro insuficiente.", ephemeral: true });
+                    return replyOrEdit(interaction, { content: "❌ Dinheiro insuficiente.", ephemeral: true });
                 }
             }
 
@@ -64,10 +67,10 @@ module.exports = {
                 await userdb.save();
             }
 
-            interaction.reply({ embeds: [embed] });
+            return replyOrEdit(interaction, { embeds: [embed], ephemeral: true });
         } catch (err) {
-            console.error(err);
-            interaction.reply({ content: "Erro ao rolar dados.", ephemeral: true }).catch(() => {});
+            logger.error("Erro ao rolar dados", { error: String(err?.message || err) });
+            replyOrEdit(interaction, { content: "Erro ao rolar dados.", ephemeral: true }).catch(() => {});
         }
     }
 };

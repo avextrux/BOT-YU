@@ -1,6 +1,8 @@
 const Discord = require("discord.js");
 const { formatMoney, debitWalletIfEnough, creditWallet, errorEmbed } = require("../../Utils/economy");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
+const logger = require("../../Utils/logger");
+const { replyOrEdit } = require("../../Utils/commandKit");
 
 const DEFAULT_OWNER_ID = process.env.CENTRAL_BANK_OWNER_ID || "589646045756129301";
 
@@ -224,8 +226,8 @@ module.exports = {
                 return interaction.reply({ embeds: [embed] });
             }
         } catch (err) {
-            console.error(err);
-            interaction.reply({ content: "Erro no mercado.", ephemeral: true }).catch(() => {});
+            logger.error("Erro no mercado", { error: String(err?.message || err) });
+            replyOrEdit(interaction, { content: "Erro no mercado.", ephemeral: true }).catch(() => {});
         }
     },
 };

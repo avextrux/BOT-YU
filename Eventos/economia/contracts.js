@@ -1,4 +1,5 @@
 const client = require("../../index");
+const Discord = require("../../Utils/djs");
 
 async function processOverdue() {
     try {
@@ -80,7 +81,7 @@ async function processOverdue() {
     }
 }
 
-client.on("ready", () => {
+client.on(Discord.Events?.ClientReady || "ready", () => {
     setInterval(() => {
         processOverdue();
     }, 60 * 1000);

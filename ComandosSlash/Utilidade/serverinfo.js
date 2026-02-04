@@ -1,11 +1,15 @@
 const { MessageEmbed } = require("discord.js");
 const moment = require("moment");
 moment.locale("pt-br");
+const logger = require("../../Utils/logger");
+const { replyOrEdit } = require("../../Utils/commandKit");
+const { statusEmbed } = require("../../Utils/embeds");
 
 module.exports = {
     name: "serverinfo",
     description: "Mostra informações sobre o servidor.",
     type: "CHAT_INPUT",
+    autoDefer: { ephemeral: false },
     run: async (client, interaction) => {
         try {
             const { guild } = interaction;
@@ -30,10 +34,10 @@ module.exports = {
                 embed.setImage(guild.bannerURL({ size: 1024 }));
             }
 
-            interaction.reply({ embeds: [embed] });
+            return replyOrEdit(interaction, { embeds: [embed] });
         } catch (err) {
-            console.error(err);
-            interaction.reply({ content: "Erro ao buscar informações do servidor.", ephemeral: true });
+            logger.error("Erro ao buscar informações do servidor", { error: String(err?.message || err) });
+            replyOrEdit(interaction, { embeds: [statusEmbed("error", "Erro ao buscar informações do servidor.", { title: "Serverinfo" })], ephemeral: true }).catch(() => {});
         }
     },
 };

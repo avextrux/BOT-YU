@@ -1,7 +1,7 @@
 const client = require("../../index");
 const { VENDORS, ITEMS } = require("../../Utils/blackMarketCatalog");
 const { ensureVendorState, decayHeat, updateDemandEma, DISTRICTS } = require("../../Utils/blackMarketEngine");
-const Discord = require("discord.js");
+const Discord = require("../../Utils/djs");
 
 async function trySendToChannel(channelId, payload) {
     if (!channelId) return false;
@@ -282,7 +282,7 @@ async function tick() {
 }
 
 
-client.on("ready", () => {
+client.on(Discord.Events?.ClientReady || "ready", () => {
     setInterval(() => {
         tick();
     }, 60 * 1000);

@@ -1,5 +1,7 @@
 const Discord = require("discord.js");
 const { formatMoney, debitWalletIfEnough } = require("../../Utils/economy");
+const logger = require("../../Utils/logger");
+const { replyOrEdit } = require("../../Utils/commandKit");
 const { 
     getVoteCount, setVoteCount, deleteVote, getTotalVotes, getSortedResults, 
     getVotePrice, ensureElectionDefaults 
@@ -75,7 +77,7 @@ module.exports = {
 
             const msg = await interaction.reply({ embeds: [embed], components: [row], fetchReply: true, ephemeral: true });
 
-            const collector = msg.createMessageComponentCollector({ componentType: 'SELECT_MENU', idle: 120000 });
+            const collector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType?.StringSelect || "SELECT_MENU", idle: 120000 });
 
             collector.on('collect', async i => {
                 if (i.user.id !== interaction.user.id) return safe(i.reply({ content: "Menu pessoal.", ephemeral: true }));
@@ -269,8 +271,8 @@ module.exports = {
             });
 
         } catch (err) {
-            console.error(err);
-            interaction.reply({ content: "Erro no hub de eleições.", ephemeral: true });
+            logger.error("Erro no hub de eleições", { error: String(err?.message || err) });
+            replyOrEdit(interaction, { content: "Erro no hub de eleições.", embeds: [], components: [], ephemeral: true }).catch(() => {});
         }
     }
 };

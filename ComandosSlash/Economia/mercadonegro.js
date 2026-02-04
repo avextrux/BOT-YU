@@ -6,6 +6,9 @@ const { bumpRate } = require("../../Utils/antiCheat");
 const { DISTRICTS, ITEMS, VENDORS, REP_LEVELS, computeRepLevel, getRepLevelName, ensureVendorState, computeDynamicPrice, computeInterceptChance, addInventory, removeInventory, decayHeat, updateDemandEma } = require("../../Utils/blackMarketEngine");
 const { syncMissions, applyMissionProgress, parseMissionId, missionTitle, missionRewards } = require("../../Utils/blackMarketMissions");
 const { ensureTerritories, applyCriminalInfluence, applyPoliceInfluence } = require("../../Utils/territoryEngine");
+const { safe, promptOneLine } = require("../../Utils/interactions");
+const logger = require("../../Utils/logger");
+const { replyOrEdit } = require("../../Utils/commandKit");
 
 function isAdmin(interaction) {
     return (
@@ -22,27 +25,6 @@ function pickDistrict(id) {
 function parseIntSafe(v) {
     const n = Math.floor(Number(v));
     return Number.isFinite(n) ? n : null;
-}
-
-async function safe(promise) {
-    try {
-        return await promise;
-    } catch (e) {
-        if (e?.code === 10062 || e?.code === 40060) return null;
-        throw e;
-    }
-}
-
-async function promptOneLine(interactionLike, { prompt, timeMs = 60000 }) {
-    if (!interactionLike.channel || typeof interactionLike.channel.awaitMessages !== "function") return null;
-    await interactionLike.followUp({ content: prompt, ephemeral: true }).catch(() => {});
-    const filter = (m) => m.author?.id === interactionLike.user.id;
-    const collected = await interactionLike.channel.awaitMessages({ filter, max: 1, time: timeMs });
-    const msg = collected.first();
-    if (!msg) return null;
-    const value = msg.content;
-    msg.delete().catch(() => {});
-    return value;
 }
 
 async function getGuildEvent(client, guildId) {
@@ -238,7 +220,7 @@ module.exports = {
 
             const msg = await interaction.reply({ embeds: [home], components: [row], fetchReply: true, ephemeral: true });
 
-            const collector = msg.createMessageComponentCollector({ componentType: "SELECT_MENU", idle: 120000 });
+            const collector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType?.StringSelect || "SELECT_MENU", idle: 120000 });
             collector.on("collect", async (i) => {
                 try {
                     if (i.user.id !== interaction.user.id) return safe(i.reply({ content: "❌ Esse menu é do autor do comando.", ephemeral: true }));
@@ -992,8 +974,8 @@ module.exports = {
                         return safe(i.editReply({ embeds: [e], components: [row] }));
                     }
                 } catch (err) {
-                    console.error(err);
-                    i.followUp({ content: "Erro no hub do Mercado Negro.", ephemeral: true }).catch(() => {});
+                    logger.error("Erro no hub do Mercado Negro", { error: String(err?.message || err) });
+                    safe(i.followUp({ content: "Erro no hub do Mercado Negro.", ephemeral: true })).catch(() => {});
                 }
             });
 
@@ -1003,8 +985,8 @@ module.exports = {
                 interaction.editReply({ components: [disabledRow] }).catch(() => {});
             });
         } catch (err) {
-            console.error(err);
-            interaction.reply({ content: "Erro no mercado negro.", ephemeral: true }).catch(() => {});
+            logger.error("Erro no mercado negro", { error: String(err?.message || err) });
+            replyOrEdit(interaction, { content: "Erro no mercado negro.", ephemeral: true }).catch(() => {});
         }
     },
 };

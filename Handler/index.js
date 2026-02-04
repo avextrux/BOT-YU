@@ -1,8 +1,73 @@
 const fs = require("fs");
+const logger = require("../Utils/logger");
+const Discord = require("../Utils/djs");
+
+function pick(obj, keys) {
+    const out = {};
+    for (const k of keys) {
+        if (obj?.[k] !== undefined) out[k] = obj[k];
+    }
+    return out;
+}
+
+function toSlashData(cmd) {
+    const data = pick(cmd, ["name", "description", "options", "type", "defaultPermission", "dmPermission"]);
+    if (data.type !== undefined) data.type = normalizeCommandType(data.type);
+    if (Array.isArray(data.options)) data.options = normalizeOptions(data.options);
+    return data;
+}
+
+function validateCommandShape(cmd) {
+    const missing = [];
+    if (!cmd || typeof cmd !== "object") missing.push("module");
+    if (!cmd?.name || typeof cmd.name !== "string") missing.push("name");
+    if (!cmd?.description || typeof cmd.description !== "string") missing.push("description");
+    if (!cmd?.type || (typeof cmd.type !== "string" && typeof cmd.type !== "number")) missing.push("type");
+    if (typeof cmd?.run !== "function") missing.push("run");
+    return missing;
+}
+
+function normalizeCommandType(type) {
+    if (typeof type === "number") return type;
+    const t = String(type || "").toUpperCase();
+    if (t === "CHAT_INPUT") return 1;
+    if (t === "USER") return 2;
+    if (t === "MESSAGE") return 3;
+    return 1;
+}
+
+function normalizeOptionType(type) {
+    if (typeof type === "number") return type;
+    const t = String(type || "").toUpperCase();
+    const map = {
+        SUB_COMMAND: 1,
+        SUB_COMMAND_GROUP: 2,
+        STRING: 3,
+        INTEGER: 4,
+        BOOLEAN: 5,
+        USER: 6,
+        CHANNEL: 7,
+        ROLE: 8,
+        MENTIONABLE: 9,
+        NUMBER: 10,
+        ATTACHMENT: 11,
+    };
+    return map[t] || 3;
+}
+
+function normalizeOptions(options) {
+    return options.map((opt) => {
+        const o = { ...opt };
+        if (o.type !== undefined) o.type = normalizeOptionType(o.type);
+        if (Array.isArray(o.options)) o.options = normalizeOptions(o.options);
+        return o;
+    });
+}
 
 module.exports = async (client) => {
     //====Handler das Slash====\\
     const SlashsArray = [];
+    const SlashsData = [];
 
     // Carregar Slash Commands
     try {
@@ -13,49 +78,60 @@ module.exports = async (client) => {
             for (const arquivo of arquivos) {
                 try {
                     const comando = require(`../ComandosSlash/${subpasta}/${arquivo}`);
-                    if (comando.name) {
-                        client.slashCommands.set(comando.name, comando);
-                        SlashsArray.push(comando);
-                    } else {
-                        console.warn(`[AVISO] O comando em ${subpasta}/${arquivo} não possui um nome exportado.`);
+                    const missing = validateCommandShape(comando);
+                    if (missing.length) {
+                        logger.warn("Comando inválido (shape)", { file: `${subpasta}/${arquivo}`, missing });
+                        continue;
                     }
+
+                    if (client.slashCommands.has(comando.name)) {
+                        logger.warn("Comando duplicado (override)", { name: comando.name, file: `${subpasta}/${arquivo}` });
+                    }
+                    client.slashCommands.set(comando.name, comando);
+                    SlashsArray.push(comando);
+                    SlashsData.push(toSlashData(comando));
                 } catch (e) {
-                    console.error(`[ERRO] Falha crítica ao carregar comando ${subpasta}/${arquivo}:`, e);
+                    logger.error("Falha ao carregar comando", { file: `${subpasta}/${arquivo}`, error: String(e?.message || e) });
                 }
             }
         }
     } catch (e) {
-        console.error("[ERRO] Falha ao ler diretório ComandosSlash:", e);
+        logger.error("Falha ao ler diretório ComandosSlash", { error: String(e?.message || e) });
     }
 
-    client.on("ready", async () => {
+    client.on(Discord.Events?.ClientReady || "ready", async () => {
         try {
-            console.log(`[SLASH] Iniciando registro de ${SlashsArray.length} comandos...`);
+            const scope = String(process.env.SLASH_REGISTER_SCOPE || "guild").toLowerCase();
+            logger.info("Iniciando registro de comandos", { count: SlashsArray.length, scope });
             
             // Estratégia de Registro Robusta:
             // Tenta registrar na guilda atual para desenvolvimento instantâneo.
             // Se falhar (bot não estiver em guildas ou sem permissão), tenta global.
             
             const guilds = client.guilds.cache;
-            
-            if (guilds.size > 0) {
-                guilds.forEach(async guild => {
-                   try {
-                       await guild.commands.set(SlashsArray);
-                       console.log(`[SLASH] ✅ Comandos registrados com sucesso na guilda: ${guild.name}`);
-                   } catch (e) {
-                       console.error(`[SLASH] ⚠️ Falha ao registrar na guilda ${guild.name} (Verifique permissões 'applications.commands'):`, e.message);
-                   }
-                });
-            } else {
-                console.log("[SLASH] Bot não está em nenhuma guilda ainda. Aguardando entrada...");
+
+            if (scope === "global") {
+                await client.application.commands.set(SlashsData);
+                logger.info("Comandos registrados globalmente", { count: SlashsArray.length });
+                return;
             }
-            
-            // Opcional: Descomente abaixo para registrar globalmente também (para produção)
-            // await client.application.commands.set(SlashsArray);
+
+            if (guilds.size <= 0) {
+                logger.warn("Bot não está em nenhuma guilda ainda. Aguardando entrada...");
+                return;
+            }
+
+            guilds.forEach(async (guild) => {
+                try {
+                    await guild.commands.set(SlashsData);
+                    logger.info("Comandos registrados na guilda", { guild: guild.name, guildId: guild.id });
+                } catch (e) {
+                    logger.error("Falha ao registrar comandos na guilda", { guild: guild.name, guildId: guild.id, error: String(e?.message || e) });
+                }
+            });
 
         } catch (e) {
-            console.error("[ERRO FATAL] Falha no processo de registro de comandos:", e);
+            logger.error("Falha no processo de registro de comandos", { error: String(e?.message || e) });
         }
     });
 
@@ -71,13 +147,13 @@ module.exports = async (client) => {
                         try {
                             require(`../Eventos/${subpasta}/${arquivo}`);
                         } catch (e) {
-                            console.error(`[ERRO] Falha ao carregar evento ${subpasta}/${arquivo}:`, e);
+                            logger.error("Falha ao carregar evento", { file: `${subpasta}/${arquivo}`, error: String(e?.message || e) });
                         }
                     }
                 }
             }
         }
     } catch (e) {
-        console.error("[ERRO] Falha ao ler diretório Eventos:", e);
+        logger.error("Falha ao ler diretório Eventos", { error: String(e?.message || e) });
     }
 };

@@ -1,4 +1,7 @@
 const Discord = require("discord.js");
+const logger = require("../../Utils/logger");
+const { safe } = require("../../Utils/interactions");
+const { replyOrEdit } = require("../../Utils/commandKit");
 
 const QUESTIONS = [
     {
@@ -64,7 +67,7 @@ module.exports = {
             });
 
             collector.on("collect", async (i) => {
-                await i.deferUpdate();
+                await safe(i.deferUpdate());
                 const picked = Number(i.customId.slice(1));
                 const ok = picked === correct;
 
@@ -94,13 +97,13 @@ module.exports = {
                         .setTitle("🧠 Quiz")
                         .setColor("GREY")
                         .setDescription(`⏰ Tempo esgotado!\n\nCorreta: **${item.a[correct]}**`);
-                    await interaction.editReply({ embeds: [end], components: [] }).catch(() => {});
+                    await safe(interaction.editReply({ embeds: [end], components: [] }));
                 }
             });
 
         } catch (err) {
-            console.error(err);
-            interaction.reply({ content: "Erro no quiz.", ephemeral: true }).catch(() => {});
+            logger.error("Erro no quiz", { error: String(err?.message || err) });
+            replyOrEdit(interaction, { content: "Erro no quiz.", ephemeral: true }).catch(() => {});
         }
     }
 };

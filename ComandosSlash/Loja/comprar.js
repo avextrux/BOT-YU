@@ -1,6 +1,8 @@
 const Discord = require("discord.js");
 const { formatMoney } = require("../../Utils/economy");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
+const logger = require("../../Utils/logger");
+const { replyOrEdit } = require("../../Utils/commandKit");
 
 module.exports = {
     name: "comprar",
@@ -59,7 +61,7 @@ module.exports = {
                         await interaction.member.roles.add(role);
                         roleStatus = `\n🎁 **Cargo recebido:** ${role.name}`;
                     } catch (e) {
-                        console.error(e);
+                        logger.error("Erro ao dar cargo na compra", { error: String(e?.message || e), roleId: String(item.roleID || ""), guildId: String(guildID) });
                         roleStatus = `\n⚠️ **Erro:** Não consegui te dar o cargo. Verifique minhas permissões.`;
                     }
                 } else {
@@ -88,8 +90,8 @@ module.exports = {
             interaction.reply({ embeds: [embed] });
 
         } catch (err) {
-            console.error(err);
-            interaction.reply({ content: "Erro ao realizar compra.", ephemeral: true });
+            logger.error("Erro ao realizar compra", { error: String(err?.message || err) });
+            replyOrEdit(interaction, { content: "Erro ao realizar compra.", ephemeral: true }).catch(() => {});
         }
     }
 };

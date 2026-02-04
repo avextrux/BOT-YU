@@ -1,6 +1,8 @@
 const Discord = require("discord.js");
 const { formatMoney, parseAmountInput, debitWalletIfEnough, creditWallet, errorEmbed } = require("../../Utils/economy");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
+const logger = require("../../Utils/logger");
+const { replyOrEdit } = require("../../Utils/commandKit");
 
 function normId(s) {
     return String(s).trim().toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 16);
@@ -10,6 +12,7 @@ module.exports = {
     name: "banco",
     description: "Bancos privados controlados por jogadores",
     type: "CHAT_INPUT",
+    autoDefer: { ephemeral: true },
     options: [
         {
             name: "criar",
@@ -73,10 +76,10 @@ module.exports = {
             if (sub === "criar") {
                 const id = normId(interaction.options.getString("id"));
                 const nome = interaction.options.getString("nome").slice(0, 40);
-                if (!id) return interaction.reply({ embeds: [errorEmbed("❌ ID inválido.")], ephemeral: true });
+                if (!id) return replyOrEdit(interaction, { embeds: [errorEmbed("❌ ID inválido.")], ephemeral: true });
 
                 const exists = await client.playerBankdb.findOne({ guildID, bankID: id });
-                if (exists) return interaction.reply({ embeds: [errorEmbed("❌ Já existe um banco com esse ID.")], ephemeral: true });
+                if (exists) return replyOrEdit(interaction, { embeds: [errorEmbed("❌ Já existe um banco com esse ID.")], ephemeral: true });
 
                 const bank = await client.playerBankdb.create({
                     guildID,
@@ -100,12 +103,12 @@ module.exports = {
                         { name: "Dono", value: `${interaction.user}`, inline: true },
                         { name: "Reservas", value: formatMoney(bank.reserves), inline: true }
                     );
-                return interaction.reply({ embeds: [embed] });
+                return replyOrEdit(interaction, { embeds: [embed], ephemeral: true });
             }
 
             const id = normId(interaction.options.getString("id"));
             const bank = await client.playerBankdb.findOne({ guildID, bankID: id });
-            if (!bank) return interaction.reply({ embeds: [errorEmbed("❌ Banco não encontrado.")], ephemeral: true });
+            if (!bank) return replyOrEdit(interaction, { embeds: [errorEmbed("❌ Banco não encontrado.")], ephemeral: true });
 
             if (sub === "info") {
                 const myDep = (bank.deposits?.get ? bank.deposits.get(interaction.user.id) : bank.deposits?.[interaction.user.id]) || 0;
@@ -122,28 +125,28 @@ module.exports = {
                         { name: "Juros empréstimo", value: `${Math.floor((bank.loanInterestRate || 0) * 100)}%`, inline: true },
                         { name: "Seu empréstimo", value: myLoan ? `${formatMoney(myLoan.remaining)} (vence <t:${Math.floor(myLoan.dueAt / 1000)}:R>)` : "-", inline: false }
                     );
-                return interaction.reply({ embeds: [embed] });
+                return replyOrEdit(interaction, { embeds: [embed], ephemeral: true });
             }
 
             const gate = await ensureEconomyAllowed(client, interaction, interaction.user.id);
-            if (!gate.ok) return interaction.reply({ embeds: [gate.embed], ephemeral: true });
+            if (!gate.ok) return replyOrEdit(interaction, { embeds: [gate.embed], ephemeral: true });
             const userdb = gate.userdb;
 
             if (sub === "depositar") {
                 const carteira = userdb.economia.money || 0;
                 const parsed = parseAmountInput(interaction.options.getString("quantia"), { max: carteira });
-                if (!parsed) return interaction.reply({ embeds: [errorEmbed("❌ Valor inválido.")], ephemeral: true });
+                if (!parsed) return replyOrEdit(interaction, { embeds: [errorEmbed("❌ Valor inválido.")], ephemeral: true });
                 let amount = 0;
                 if (parsed.kind === "all") amount = carteira;
                 if (parsed.kind === "half") amount = Math.floor(carteira / 2);
                 if (parsed.kind === "number") amount = parsed.value;
-                if (amount <= 0) return interaction.reply({ embeds: [errorEmbed("❌ Você não tem saldo para depositar.")], ephemeral: true });
+                if (amount <= 0) return replyOrEdit(interaction, { embeds: [errorEmbed("❌ Você não tem saldo para depositar.")], ephemeral: true });
 
                 const fee = Math.floor(amount * Math.max(0, Math.min(0.05, bank.feeRate || 0)));
                 const net = amount - fee;
 
                 const debited = await debitWalletIfEnough(client.userdb, interaction.user.id, amount, "playerbank_deposit", { bank: bank.bankID });
-                if (!debited) return interaction.reply({ embeds: [errorEmbed("❌ Saldo insuficiente.")], ephemeral: true });
+                if (!debited) return replyOrEdit(interaction, { embeds: [errorEmbed("❌ Saldo insuficiente.")], ephemeral: true });
 
                 const update = await client.playerBankdb.findOneAndUpdate(
                     { guildID, bankID: id },
@@ -155,7 +158,7 @@ module.exports = {
 
                 if (!update) {
                     await creditWallet(client.userdb, interaction.user.id, amount, "playerbank_refund", { reason: "bank_update_failed", bank: id }).catch(() => {});
-                    return interaction.reply({ embeds: [errorEmbed("❌ Falha ao depositar. Valor estornado.")], ephemeral: true });
+                    return replyOrEdit(interaction, { embeds: [errorEmbed("❌ Falha ao depositar. Valor estornado.")], ephemeral: true });
                 }
 
                 const embed = new Discord.MessageEmbed()
@@ -163,19 +166,19 @@ module.exports = {
                     .setColor("GREEN")
                     .setDescription(`Você depositou **${formatMoney(net)}** em **${update.name}**.${fee ? `\nTaxa: **${formatMoney(fee)}**` : ""}`)
                     .addFields({ name: "Reservas do banco", value: formatMoney(update.reserves), inline: true });
-                return interaction.reply({ embeds: [embed] });
+                return replyOrEdit(interaction, { embeds: [embed], ephemeral: true });
             }
 
             if (sub === "retirar") {
                 const myDep = (bank.deposits?.get ? bank.deposits.get(interaction.user.id) : bank.deposits?.[interaction.user.id]) || 0;
                 const parsed = parseAmountInput(interaction.options.getString("quantia"), { max: myDep });
-                if (!parsed) return interaction.reply({ embeds: [errorEmbed("❌ Valor inválido.")], ephemeral: true });
+                if (!parsed) return replyOrEdit(interaction, { embeds: [errorEmbed("❌ Valor inválido.")], ephemeral: true });
                 let amount = 0;
                 if (parsed.kind === "all") amount = myDep;
                 if (parsed.kind === "half") amount = Math.floor(myDep / 2);
                 if (parsed.kind === "number") amount = parsed.value;
-                if (amount <= 0) return interaction.reply({ embeds: [errorEmbed("❌ Você não tem saldo nesse banco.")], ephemeral: true });
-                if (bank.reserves < amount) return interaction.reply({ embeds: [errorEmbed("❌ O banco não tem reservas suficientes (corrida bancária!).")], ephemeral: true });
+                if (amount <= 0) return replyOrEdit(interaction, { embeds: [errorEmbed("❌ Você não tem saldo nesse banco.")], ephemeral: true });
+                if (bank.reserves < amount) return replyOrEdit(interaction, { embeds: [errorEmbed("❌ O banco não tem reservas suficientes (corrida bancária!).")], ephemeral: true });
 
                 const update = await client.playerBankdb.findOneAndUpdate(
                     { guildID, bankID: id, reserves: { $gte: amount }, [`deposits.${interaction.user.id}`]: { $gte: amount } },
@@ -185,7 +188,7 @@ module.exports = {
                     { new: true }
                 );
 
-                if (!update) return interaction.reply({ embeds: [errorEmbed("❌ Falha ao retirar (saldo/reservas mudaram).")], ephemeral: true });
+                if (!update) return replyOrEdit(interaction, { embeds: [errorEmbed("❌ Falha ao retirar (saldo/reservas mudaram).")], ephemeral: true });
 
                 await creditWallet(client.userdb, interaction.user.id, amount, "playerbank_withdraw", { bank: id }).catch(() => {});
 
@@ -194,16 +197,16 @@ module.exports = {
                     .setColor("GREEN")
                     .setDescription(`Você retirou **${formatMoney(amount)}** de **${update.name}**.`)
                     .addFields({ name: "Reservas do banco", value: formatMoney(update.reserves), inline: true });
-                return interaction.reply({ embeds: [embed] });
+                return replyOrEdit(interaction, { embeds: [embed], ephemeral: true });
             }
 
             if (sub === "emprestimo_pedir") {
                 const value = Math.floor(interaction.options.getNumber("valor"));
                 const days = Math.max(1, Math.min(30, interaction.options.getInteger("dias")));
-                if (!Number.isFinite(value) || value <= 0) return interaction.reply({ embeds: [errorEmbed("❌ Valor inválido.")], ephemeral: true });
+                if (!Number.isFinite(value) || value <= 0) return replyOrEdit(interaction, { embeds: [errorEmbed("❌ Valor inválido.")], ephemeral: true });
                 const existing = (bank.loans || []).find((l) => l.borrowerId === interaction.user.id && l.remaining > 0);
-                if (existing) return interaction.reply({ embeds: [errorEmbed("❌ Você já tem um empréstimo ativo neste banco.")], ephemeral: true });
-                if (bank.reserves < value) return interaction.reply({ embeds: [errorEmbed("❌ O banco não tem reservas para esse empréstimo.")], ephemeral: true });
+                if (existing) return replyOrEdit(interaction, { embeds: [errorEmbed("❌ Você já tem um empréstimo ativo neste banco.")], ephemeral: true });
+                if (bank.reserves < value) return replyOrEdit(interaction, { embeds: [errorEmbed("❌ O banco não tem reservas para esse empréstimo.")], ephemeral: true });
 
                 const rate = Math.max(0, Math.min(0.5, bank.loanInterestRate || 0.15));
                 const due = now + days * 24 * 60 * 60 * 1000;
@@ -218,7 +221,7 @@ module.exports = {
                     { new: true }
                 );
 
-                if (!update) return interaction.reply({ embeds: [errorEmbed("❌ Falha ao emitir empréstimo.")], ephemeral: true });
+                if (!update) return replyOrEdit(interaction, { embeds: [errorEmbed("❌ Falha ao emitir empréstimo.")], ephemeral: true });
 
                 await creditWallet(client.userdb, interaction.user.id, value, "playerbank_loan", { bank: id, total, dueAt: due }).catch(() => {});
 
@@ -227,20 +230,20 @@ module.exports = {
                     .setColor("GOLD")
                     .setDescription(`Você recebeu **${formatMoney(value)}**.\nTotal a pagar: **${formatMoney(total)}**\nVence: <t:${Math.floor(due / 1000)}:R>`)
                     .addFields({ name: "Banco", value: update.name, inline: true });
-                return interaction.reply({ embeds: [embed] });
+                return replyOrEdit(interaction, { embeds: [embed], ephemeral: true });
             }
 
             if (sub === "emprestimo_pagar") {
                 const pay = Math.floor(interaction.options.getNumber("valor"));
-                if (!Number.isFinite(pay) || pay <= 0) return interaction.reply({ embeds: [errorEmbed("❌ Valor inválido.")], ephemeral: true });
+                if (!Number.isFinite(pay) || pay <= 0) return replyOrEdit(interaction, { embeds: [errorEmbed("❌ Valor inválido.")], ephemeral: true });
 
                 const bankFresh = await client.playerBankdb.findOne({ guildID, bankID: id });
                 const loan = (bankFresh.loans || []).find((l) => l.borrowerId === interaction.user.id && l.remaining > 0);
-                if (!loan) return interaction.reply({ embeds: [errorEmbed("❌ Você não tem empréstimo ativo nesse banco.")], ephemeral: true });
+                if (!loan) return replyOrEdit(interaction, { embeds: [errorEmbed("❌ Você não tem empréstimo ativo nesse banco.")], ephemeral: true });
 
                 const amount = Math.min(pay, loan.remaining);
                 const debited = await debitWalletIfEnough(client.userdb, interaction.user.id, amount, "playerbank_loan_pay", { bank: id });
-                if (!debited) return interaction.reply({ embeds: [errorEmbed("❌ Saldo insuficiente.")], ephemeral: true });
+                if (!debited) return replyOrEdit(interaction, { embeds: [errorEmbed("❌ Saldo insuficiente.")], ephemeral: true });
 
                 const updated = await client.playerBankdb.findOneAndUpdate(
                     { guildID, bankID: id, "loans.borrowerId": interaction.user.id, "loans.remaining": { $gt: 0 } },
@@ -253,7 +256,7 @@ module.exports = {
 
                 if (!updated) {
                     await creditWallet(client.userdb, interaction.user.id, amount, "playerbank_refund", { reason: "loan_update_failed", bank: id }).catch(() => {});
-                    return interaction.reply({ embeds: [errorEmbed("❌ Falha ao registrar pagamento. Valor estornado.")], ephemeral: true });
+                    return replyOrEdit(interaction, { embeds: [errorEmbed("❌ Falha ao registrar pagamento. Valor estornado.")], ephemeral: true });
                 }
 
                 const loanNow = (updated.loans || []).find((l) => l.borrowerId === interaction.user.id && l.createdAt === loan.createdAt);
@@ -264,12 +267,12 @@ module.exports = {
                     .setColor("GREEN")
                     .setDescription(`Você pagou **${formatMoney(amount)}**. Restante: **${formatMoney(remaining)}**.`)
                     .addFields({ name: "Banco", value: updated.name, inline: true });
-                return interaction.reply({ embeds: [embed] });
+                return replyOrEdit(interaction, { embeds: [embed], ephemeral: true });
             }
 
         } catch (err) {
-            console.error(err);
-            interaction.reply({ content: "Erro no banco privado.", ephemeral: true }).catch(() => {});
+            logger.error("Erro no banco privado", { error: String(err?.message || err) });
+            replyOrEdit(interaction, { embeds: [errorEmbed("Erro no banco privado.")], ephemeral: true }).catch(() => {});
         }
     }
 };

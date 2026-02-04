@@ -1,22 +1,10 @@
-const config = require("../Config.json");
 const { getJson } = require("./http");
+const { getGiphyKey: getGiphyKeyFromConfig } = require("./config");
 
 const cache = new Map();
 
-function getGiphyKey() {
-  return (
-    process.env.GIPHY_KEY ||
-    process.env.GIPHY_API_KEY ||
-    process.env.GIPHY_SDK_KEY ||
-    config.GiphyKey ||
-    config.GiphySDKKey ||
-    config.GiphyApiKey ||
-    null
-  );
-}
-
 async function getRandomGifUrl(query, { rating = "pg-13" } = {}) {
-  const apiKey = getGiphyKey();
+  const apiKey = getGiphyKeyFromConfig();
   if (!apiKey) return null;
 
   const cacheKey = `${query}::${rating}`;

@@ -1,5 +1,7 @@
 const Discord = require("discord.js");
 const { formatMoney } = require("../../Utils/economy");
+const logger = require("../../Utils/logger");
+const { replyOrEdit } = require("../../Utils/commandKit");
 
 module.exports = {
     name: "loja",
@@ -41,8 +43,8 @@ module.exports = {
             interaction.reply({ embeds: [embed] });
 
         } catch (err) {
-            console.error(err);
-            interaction.reply({ content: "Erro ao carregar a loja.", ephemeral: true });
+            logger.error("Erro ao carregar a loja", { error: String(err?.message || err) });
+            replyOrEdit(interaction, { content: "Erro ao carregar a loja.", ephemeral: true }).catch(() => {});
         }
     }
 };

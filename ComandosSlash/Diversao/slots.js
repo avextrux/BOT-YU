@@ -1,10 +1,13 @@
 const Discord = require("discord.js");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
+const logger = require("../../Utils/logger");
+const { replyOrEdit } = require("../../Utils/commandKit");
 
 module.exports = {
     name: "slots",
     description: "Jogue no caça-níqueis (Cassino)",
     type: 'CHAT_INPUT',
+    autoDefer: { ephemeral: true },
     options: [
         {
             name: "aposta",
@@ -15,14 +18,14 @@ module.exports = {
     ],
     run: async (client, interaction) => {
         try {
-            const ok = await ensureEconomyAllowed(client, interaction, interaction.user.id);
-            if (!ok) return;
+            const gate = await ensureEconomyAllowed(client, interaction, interaction.user.id);
+            if (!gate.ok) return replyOrEdit(interaction, { embeds: [gate.embed], ephemeral: true });
             const aposta = Math.floor(interaction.options.getNumber("aposta"));
 
-            if (aposta <= 0) return interaction.reply({ content: "❌ Aposta inválida.", ephemeral: true });
+            if (aposta <= 0) return replyOrEdit(interaction, { content: "❌ Aposta inválida.", ephemeral: true });
 
             const userdb = await client.userdb.getOrCreate(interaction.user.id);
-            if (userdb.economia.money < aposta) return interaction.reply({ content: "❌ Dinheiro insuficiente.", ephemeral: true });
+            if (userdb.economia.money < aposta) return replyOrEdit(interaction, { content: "❌ Dinheiro insuficiente.", ephemeral: true });
 
             // Emojis do slot
             const slots = ["🍇", "🍒", "🍋", "🍊", "🍉", "💎", "7️⃣"];
@@ -57,11 +60,11 @@ module.exports = {
             }
 
             await userdb.save();
-            interaction.reply({ embeds: [embed] });
+            return replyOrEdit(interaction, { embeds: [embed], ephemeral: true });
 
         } catch (err) {
-            console.error(err);
-            interaction.reply({ content: "Erro no cassino.", ephemeral: true });
+            logger.error("Erro no cassino (slots)", { error: String(err?.message || err) });
+            replyOrEdit(interaction, { content: "Erro no cassino.", ephemeral: true }).catch(() => {});
         }
     }
 };

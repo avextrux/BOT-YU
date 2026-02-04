@@ -1,6 +1,8 @@
 const Discord = require("discord.js");
 const { getRandomGifUrl } = require("../../Utils/giphy");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
+const logger = require("../../Utils/logger");
+const { replyOrEdit } = require("../../Utils/commandKit");
 
 function createDeck(decks = 4) {
     const ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
@@ -115,8 +117,8 @@ module.exports = {
     ],
     run: async (client, interaction) => {
         try {
-            const ok = await ensureEconomyAllowed(client, interaction, interaction.user.id);
-            if (!ok) return;
+            const gate = await ensureEconomyAllowed(client, interaction, interaction.user.id);
+            if (!gate.ok) return replyOrEdit(interaction, { embeds: [gate.embed], ephemeral: true });
             const aposta = Math.floor(interaction.options.getNumber("aposta"));
             if (!Number.isFinite(aposta) || aposta <= 0) {
                 return interaction.reply({ content: "❌ Aposta inválida.", ephemeral: true });
@@ -410,16 +412,12 @@ module.exports = {
                 }
             });
         } catch (err) {
-            console.error(err);
+            logger.error("Erro ao iniciar blackjack", { error: String(err?.message || err) });
             const store = getGameStore(client);
             const k = gameKey(interaction.guildId, interaction.user.id);
             store.delete(k);
 
-            if (interaction.deferred || interaction.replied) {
-                interaction.editReply({ content: "Erro ao iniciar blackjack." }).catch(() => {});
-            } else {
-                interaction.reply({ content: "Erro ao iniciar blackjack.", ephemeral: true }).catch(() => {});
-            }
+            replyOrEdit(interaction, { content: "Erro ao iniciar blackjack.", ephemeral: true }).catch(() => {});
         }
     }
 };
