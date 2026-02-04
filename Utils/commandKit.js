@@ -1,20 +1,43 @@
 const { safe } = require("./interactions");
 const { statusEmbed } = require("./embeds");
 const logger = require("./logger");
+const Discord = require("./djs");
 
 function hasReplied(interaction) {
     return Boolean(interaction?.deferred || interaction?.replied);
 }
 
+function stripEphemeral(payload) {
+    if (!payload || typeof payload !== "object") return payload;
+    if (!("ephemeral" in payload)) return payload;
+    const { ephemeral, ...rest } = payload;
+    return rest;
+}
+
+function normalizeReplyPayload(payload) {
+    if (!payload || typeof payload !== "object") return payload;
+    if (!("ephemeral" in payload)) return payload;
+    const ephemeral = Boolean(payload.ephemeral);
+    const out = stripEphemeral(payload);
+    if (!ephemeral) return out;
+    const flag = Discord.MessageFlags?.Ephemeral;
+    if (flag === undefined) return out;
+    const existing = out.flags;
+    const flags = existing === undefined ? flag : (Array.isArray(existing) ? existing.concat([flag]) : existing | flag);
+    return { ...out, flags };
+}
+
 async function replyOrEdit(interaction, payload) {
     if (!interaction) return null;
-    if (hasReplied(interaction)) return safe(interaction.editReply(payload));
-    return safe(interaction.reply(payload));
+    if (hasReplied(interaction)) return safe(interaction.editReply(stripEphemeral(payload)));
+    return safe(interaction.reply(normalizeReplyPayload(payload)));
 }
 
 async function ensureDeferred(interaction, { ephemeral = false } = {}) {
     if (!interaction || hasReplied(interaction)) return null;
-    return safe(interaction.deferReply({ ephemeral: Boolean(ephemeral) }));
+    const flag = Discord.MessageFlags?.Ephemeral;
+    const flags = Boolean(ephemeral) && flag !== undefined ? flag : undefined;
+    return safe(interaction.deferReply(flags !== undefined ? { flags } : { ephemeral: Boolean(ephemeral) }));
 }
 
 function requireUserPerms(interaction, perms, { message } = {}) {

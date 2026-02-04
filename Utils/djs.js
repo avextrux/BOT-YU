@@ -44,6 +44,17 @@ function withAliases(base) {
 
     if (!out.MessageEmbed && out.EmbedBuilder) {
         class MessageEmbed extends out.EmbedBuilder {
+            setColor(color) {
+                if (typeof color === "string" && out.Colors) {
+                    const key = color.trim();
+                    if (key && key === key.toUpperCase()) {
+                        const pascal = toPascalFromUpperSnake(key);
+                        if (out.Colors[pascal] !== undefined) return super.setColor(out.Colors[pascal]);
+                    }
+                }
+                return super.setColor(color);
+            }
+
             addField(name, value, inline = false) {
                 return this.addFields({ name: String(name), value: String(value), inline: Boolean(inline) });
             }
@@ -88,6 +99,35 @@ function withAliases(base) {
             }
         }
         out.TextInputComponent = TextInputComponent;
+    }
+
+    if (out.BaseInteraction?.prototype && out.MessageFlags?.Ephemeral !== undefined) {
+        const flag = out.MessageFlags.Ephemeral;
+        const normalize = (options) => {
+            if (!options || typeof options !== "object") return options;
+            if (!("ephemeral" in options)) return options;
+            const ephemeral = Boolean(options.ephemeral);
+            const { ephemeral: _e, ...rest } = options;
+            if (!ephemeral) return rest;
+            const existing = rest.flags;
+            const flags = existing === undefined ? flag : (Array.isArray(existing) ? existing.concat([flag]) : existing | flag);
+            return { ...rest, flags };
+        };
+
+        const wrap = (obj, method) => {
+            const fn = obj[method];
+            if (typeof fn !== "function") return;
+            if (fn.__ephemeralCompatWrapped) return;
+            const wrapped = function (options, ...rest) {
+                return fn.call(this, normalize(options), ...rest);
+            };
+            wrapped.__ephemeralCompatWrapped = true;
+            obj[method] = wrapped;
+        };
+
+        wrap(out.BaseInteraction.prototype, "reply");
+        wrap(out.BaseInteraction.prototype, "deferReply");
+        wrap(out.BaseInteraction.prototype, "followUp");
     }
 
     return out;
