@@ -1,4 +1,4 @@
-const Discord = require("discord.js");
+const Discord = require("../../Utils/djs");
 const { formatMoney, debitWalletIfEnough } = require("../../Utils/economy");
 const logger = require("../../Utils/logger");
 const { replyOrEdit } = require("../../Utils/commandKit");
@@ -45,7 +45,7 @@ module.exports = {
             ensureElectionDefaults(eco);
 
             // Menu Principal
-            const menu = new Discord.MessageSelectMenu()
+            const menu = new Discord.StringSelectMenuBuilder()
                 .setCustomId("eleicao_hub_menu")
                 .setPlaceholder("Selecione uma ação eleitoral...")
                 .addOptions([
@@ -58,7 +58,7 @@ module.exports = {
                     { label: "Admin: Gerenciar", value: "admin_panel", description: "Iniciar/Encerrar/Configurar", emoji: "⚙️" },
                 ]);
 
-            const row = new Discord.MessageActionRow().addComponents(menu);
+            const row = new Discord.ActionRowBuilder().addComponents(menu);
 
             const active = eco.election.active && Date.now() <= (eco.election.endsAt || 0);
             const candidatesCount = (eco.election.candidates || []).length;
@@ -81,7 +81,7 @@ module.exports = {
             await replyOrEdit(interaction, { embeds: [embed], components: [row], ephemeral: true });
             const msg = await interaction.fetchReply();
 
-            const collector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType?.StringSelect || "SELECT_MENU", idle: 10 * 60 * 1000 });
+            const collector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType.StringSelect, idle: 5 * 60 * 1000 });
 
             collector.on('collect', async i => {
                 if (i.user.id !== interaction.user.id) return safe(i.reply({ content: "Menu pessoal.", ephemeral: true }));
@@ -149,8 +149,8 @@ module.exports = {
                             .setPlaceholder("Ex: 10")
                             .setRequired(true);
 
-                        const r1 = new Discord.MessageActionRow().addComponents(inputId);
-                        const r2 = new Discord.MessageActionRow().addComponents(inputQty);
+                        const r1 = new Discord.ActionRowBuilder().addComponents(inputId);
+                        const r2 = new Discord.ActionRowBuilder().addComponents(inputQty);
                         modal.addComponents(r1, r2);
 
                         await safe(i.showModal(modal));
@@ -224,18 +224,22 @@ module.exports = {
                             };
                         }));
 
-                        const voteRow = new Discord.MessageActionRow().addComponents(
-                            new Discord.MessageSelectMenu()
+                        const voteRow = new Discord.ActionRowBuilder().addComponents(
+                            new Discord.StringSelectMenuBuilder()
                                 .setCustomId("eleicao_vote_select")
                                 .setPlaceholder("Escolha seu candidato...")
                                 .addOptions(options)
                         );
 
-                        const reply = await safe(i.followUp({ content: "Selecione o candidato para seu VOTO ÚNICO:", components: [voteRow], ephemeral: true, fetchReply: true }));
+                        const reply = await safe(i.followUp({ content: "Selecione o candidato para seu VOTO ÚNICO:", components: [voteRow], ephemeral: true }));
                         if (!reply) return;
                         
-                        const filter = x => x.user.id === i.user.id && x.customId === "eleicao_vote_select";
-                        const collectorVote = reply.createMessageComponentCollector({ max: 1, time: 60000 });
+                        const collectorVote = reply.createMessageComponentCollector({
+                            componentType: Discord.ComponentType.StringSelect,
+                            max: 1,
+                            time: 60 * 1000,
+                            filter: (x) => x.user.id === i.user.id && x.customId === "eleicao_vote_select",
+                        });
                         
                         collectorVote.on('collect', async voteI => {
                             await safe(voteI.deferUpdate());
@@ -257,8 +261,8 @@ module.exports = {
                     if (action === "admin_panel") {
                         if (!isAdminMember(interaction)) return safe(i.followUp({ content: "❌ Sem permissão.", ephemeral: true }));
                         
-                        const adminRow = new Discord.MessageActionRow().addComponents(
-                            new Discord.MessageSelectMenu()
+                        const adminRow = new Discord.ActionRowBuilder().addComponents(
+                            new Discord.StringSelectMenuBuilder()
                                 .setCustomId("eleicao_admin_select")
                                 .setPlaceholder("Ação de Admin...")
                                 .addOptions([

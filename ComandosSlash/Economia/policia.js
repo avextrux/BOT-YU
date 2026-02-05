@@ -1,4 +1,4 @@
-const Discord = require("discord.js");
+const Discord = require("../../Utils/djs");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
 const { formatMoney, creditWallet } = require("../../Utils/economy");
 const { getPolice, isChief, isOfficer } = require("../../Utils/police");
@@ -80,7 +80,7 @@ module.exports = {
             const police = await getPolice(client, interaction.guildId);
             if (!police) return replyOrEdit(interaction, { content: "❌ DB de polícia indisponível.", ephemeral: true });
 
-            const menu = new Discord.MessageSelectMenu()
+            const menu = new Discord.StringSelectMenuBuilder()
                 .setCustomId("policia_hub_action")
                 .setPlaceholder("Selecionar comando...")
                 .addOptions([
@@ -104,7 +104,7 @@ module.exports = {
                     { label: "Ranking", value: "ranking", description: "Melhores policiais" },
                 ]);
 
-            const row = new Discord.MessageActionRow().addComponents(menu);
+            const row = new Discord.ActionRowBuilder().addComponents(menu);
 
             const isMeOfficer = isOfficer(police, interaction.user.id);
             const home = new Discord.MessageEmbed()
@@ -118,7 +118,7 @@ module.exports = {
 
             await replyOrEdit(interaction, { embeds: [home], components: [row], ephemeral: true });
             const msg = await interaction.fetchReply();
-            const collector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType?.StringSelect || "SELECT_MENU", idle: 10 * 60 * 1000 });
+            const collector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType.StringSelect, idle: 5 * 60 * 1000 });
 
             collector.on("collect", async (i) => {
                 try {
@@ -641,7 +641,7 @@ module.exports = {
 
             collector.on("end", () => {
                 const disabledMenu = menu.setDisabled(true).setPlaceholder("Menu expirado");
-                const disabledRow = new Discord.MessageActionRow().addComponents(disabledMenu);
+                const disabledRow = new Discord.ActionRowBuilder().addComponents(disabledMenu);
                 interaction.editReply({ components: [disabledRow] }).catch(() => {});
             });
         } catch (err) {

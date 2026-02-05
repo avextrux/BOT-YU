@@ -1,4 +1,4 @@
-const Discord = require("discord.js");
+const Discord = require("../../Utils/djs");
 const { getRandomGifUrl } = require("../../Utils/giphy");
 
 module.exports = {
@@ -73,10 +73,10 @@ module.exports = {
             const fallbackWeddingGif = "https://media.giphy.com/media/26ufcVAp3AiJJsrmw/giphy.gif";
 
             // Pedido de Casamento
-            const row = new Discord.MessageActionRow()
+            const row = new Discord.ActionRowBuilder()
                 .addComponents(
-                    new Discord.MessageButton().setCustomId('accept_marry').setLabel('Aceitar').setStyle('SUCCESS').setEmoji('💍'),
-                    new Discord.MessageButton().setCustomId('deny_marry').setLabel('Recusar').setStyle('DANGER').setEmoji('💔')
+                    new Discord.ButtonBuilder().setCustomId('accept_marry').setLabel('Aceitar').setStyle('SUCCESS').setEmoji('💍'),
+                    new Discord.ButtonBuilder().setCustomId('deny_marry').setLabel('Recusar').setStyle('DANGER').setEmoji('💔')
                 );
 
             const embed = new Discord.MessageEmbed()
@@ -87,9 +87,11 @@ module.exports = {
 
             embed.setImage(proposalGif || fallbackProposalGif);
 
-            const msg = await interaction.editReply({ content: `${user}`, embeds: [embed], components: [row], fetchReply: true });
+            await interaction.editReply({ content: `${user}`, embeds: [embed], components: [row] });
+            const msg = await interaction.fetchReply();
 
             const collector = msg.createMessageComponentCollector({ 
+                componentType: Discord.ComponentType.Button,
                 filter: i => i.user.id === user.id, 
                 time: 60000, 
                 max: 1 

@@ -1,8 +1,8 @@
-const Discord = require("discord.js");
+const Discord = require("../../Utils/djs");
 const { formatMoney, debitWalletIfEnough, creditWallet, errorEmbed } = require("../../Utils/economy");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
 const logger = require("../../Utils/logger");
-const { replyOrEdit } = require("../../Utils/commandKit");
+const { replyOrEdit, replyOrEditFetch } = require("../../Utils/commandKit");
 
 function shortId(c) {
     return String(c._id).slice(-6).toUpperCase();
@@ -255,17 +255,18 @@ module.exports = {
                 contract.dispute.decidedWinner = null;
                 await contract.save();
 
-                const btnA = new Discord.MessageButton().setCustomId(`ct_a_${contract._id}`).setLabel("A favor da Parte A").setStyle("PRIMARY");
-                const btnB = new Discord.MessageButton().setCustomId(`ct_b_${contract._id}`).setLabel("A favor da Parte B").setStyle("PRIMARY");
-                const row = new Discord.MessageActionRow().addComponents(btnA, btnB);
+                const btnA = new Discord.ButtonBuilder().setCustomId(`ct_a_${contract._id}`).setLabel("A favor da Parte A").setStyle("PRIMARY");
+                const btnB = new Discord.ButtonBuilder().setCustomId(`ct_b_${contract._id}`).setLabel("A favor da Parte B").setStyle("PRIMARY");
+                const row = new Discord.ActionRowBuilder().addComponents(btnA, btnB);
 
                 const embed = contractEmbed(contract, client)
                     .setColor("YELLOW")
                     .addFields({ name: "Votação", value: `Vote usando os botões abaixo. Encerra em 2 minutos. Mínimo: **${minVotes}** votos.` });
 
-                const msg = await interaction.reply({ embeds: [embed], components: [row], fetchReply: true });
+                const msg = await replyOrEditFetch(interaction, { embeds: [embed], components: [row] });
+                if (!msg) return;
 
-                const collector = msg.createMessageComponentCollector({ time: 2 * 60 * 1000 });
+                const collector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType.Button, time: 2 * 60 * 1000 });
 
                 collector.on("collect", async (i) => {
                     try {

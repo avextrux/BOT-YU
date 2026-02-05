@@ -1,4 +1,4 @@
-const Discord = require("discord.js");
+const Discord = require("../../Utils/djs");
 const { getRandomGifUrl } = require("../../Utils/giphy");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
 const logger = require("../../Utils/logger");
@@ -172,7 +172,8 @@ module.exports = {
             const ins = insuranceRow(state);
             if (ins) rows.unshift(ins);
 
-            const msg = await interaction.editReply({ embeds: [initialEmbed], components: rows, fetchReply: true });
+            await interaction.editReply({ embeds: [initialEmbed], components: rows });
+            const msg = await interaction.fetchReply();
 
             const collector = msg.createMessageComponentCollector({
                 filter: (i) => i.user.id === interaction.user.id,

@@ -1,14 +1,15 @@
-const Discord = require("discord.js");
+const Discord = require("../../Utils/djs");
 const { getRandomGifUrl } = require("../../Utils/giphy");
 const { formatMoney, debitWalletIfEnough, creditWallet, errorEmbed } = require("../../Utils/economy");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
 const logger = require("../../Utils/logger");
-const { replyOrEdit } = require("../../Utils/commandKit");
+const { replyOrEdit, replyOrEditFetch } = require("../../Utils/commandKit");
 
 module.exports = {
     name: "pay",
     description: "Transfira dinheiro para outro usuário",
     type: 'CHAT_INPUT',
+    autoDefer: { ephemeral: false },
     options: [
         {
             name: "usuario",
@@ -26,27 +27,27 @@ module.exports = {
     run: async (client, interaction) => {
         try {
             const gate = await ensureEconomyAllowed(client, interaction, interaction.user.id);
-            if (!gate.ok) return interaction.reply({ embeds: [gate.embed], ephemeral: true });
+            if (!gate.ok) return replyOrEdit(interaction, { embeds: [gate.embed], ephemeral: true });
             const receiver = interaction.options.getUser("usuario");
             const amount = Math.floor(interaction.options.getNumber("quantia"));
 
             // Validações básicas
             if (receiver.id === interaction.user.id) {
-                return interaction.reply({ 
+                return replyOrEdit(interaction, { 
                     embeds: [new Discord.MessageEmbed().setColor("RED").setDescription("❌ Você não pode transferir dinheiro para si mesmo.")], 
                     ephemeral: true 
                 });
             }
 
             if (amount <= 0) {
-                return interaction.reply({ 
+                return replyOrEdit(interaction, { 
                     embeds: [new Discord.MessageEmbed().setColor("RED").setDescription("❌ O valor da transferência deve ser maior que zero.")], 
                     ephemeral: true 
                 });
             }
 
             if (receiver.bot) {
-                return interaction.reply({ 
+                return replyOrEdit(interaction, { 
                     embeds: [new Discord.MessageEmbed().setColor("RED").setDescription("❌ Você não pode transferir dinheiro para bots.")], 
                     ephemeral: true 
                 });
@@ -56,7 +57,7 @@ module.exports = {
             const payerDb = await client.userdb.getOrCreate(interaction.user.id);
             
             if (payerDb.economia.money < amount) {
-                return interaction.reply({ 
+                return replyOrEdit(interaction, { 
                     embeds: [new Discord.MessageEmbed().setColor("RED").setDescription(`❌ Saldo insuficiente na carteira.\n💵 Você tem: **${formatMoney(payerDb.economia.money)}**`)], 
                     ephemeral: true 
                 });
@@ -72,17 +73,19 @@ module.exports = {
                 .setColor("YELLOW")
                 .setDescription(`Você está prestes a transferir **${formatMoney(amount)}** para ${receiver}.\n\nClique em ✅ para confirmar ou ❌ para cancelar.`)
                 .setImage(gif)
-                .setFooter({ text: "Esta operação expira em 30 segundos." });
+                .setFooter({ text: "WDA • Direitos reservados • Expira em 30s." });
 
-            const row = new Discord.MessageActionRow()
+            const row = new Discord.ActionRowBuilder()
                 .addComponents(
-                    new Discord.MessageButton().setCustomId('confirm_pay').setLabel('Confirmar').setStyle('SUCCESS').setEmoji('✅'),
-                    new Discord.MessageButton().setCustomId('cancel_pay').setLabel('Cancelar').setStyle('DANGER').setEmoji('❌')
+                    new Discord.ButtonBuilder().setCustomId('confirm_pay').setLabel('Confirmar').setStyle('SUCCESS').setEmoji('✅'),
+                    new Discord.ButtonBuilder().setCustomId('cancel_pay').setLabel('Cancelar').setStyle('DANGER').setEmoji('❌')
                 );
 
-            const msg = await interaction.reply({ embeds: [confirmEmbed], components: [row], fetchReply: true });
+            const msg = await replyOrEditFetch(interaction, { embeds: [confirmEmbed], components: [row] });
+            if (!msg) return;
 
             const collector = msg.createMessageComponentCollector({ 
+                componentType: Discord.ComponentType.Button,
                 filter: i => i.user.id === interaction.user.id, 
                 time: 30000, 
                 max: 1 

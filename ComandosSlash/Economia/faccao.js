@@ -1,4 +1,4 @@
-const Discord = require("discord.js");
+const Discord = require("../../Utils/djs");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
 const { formatMoney, debitWalletIfEnough, creditWallet, errorEmbed } = require("../../Utils/economy");
 const { DISTRICTS } = require("../../Utils/blackMarketEngine");
@@ -139,7 +139,7 @@ module.exports = {
 
             await ensureTerritories(client, interaction.guildId);
 
-            const menu = new Discord.MessageSelectMenu()
+            const menu = new Discord.StringSelectMenuBuilder()
                 .setCustomId("faccao_hub_action")
                 .setPlaceholder("Selecionar comando...")
                 .addOptions([
@@ -157,7 +157,7 @@ module.exports = {
                     { label: "🗑️ Deletar facção", value: "deletar", description: "Líder/Admin: apagar facção" },
                 ]);
 
-            const row = new Discord.MessageActionRow().addComponents(menu);
+            const row = new Discord.ActionRowBuilder().addComponents(menu);
 
             const { user: startUser, faction: startFaction } = await getMyFaction(client, interaction.guildId, interaction.user.id);
             const home = new Discord.MessageEmbed()
@@ -177,6 +177,7 @@ module.exports = {
             await replyOrEdit(interaction, { embeds: [home], components: [row], ephemeral: true });
             const msg = await interaction.fetchReply();
 
+            const collector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType.StringSelect, idle: 5 * 60 * 1000 });
 
             collector.on("collect", async (i) => {
                 try {
@@ -585,7 +586,7 @@ module.exports = {
 
             collector.on("end", () => {
                 const disabledMenu = menu.setDisabled(true).setPlaceholder("Menu expirado");
-                const disabledRow = new Discord.MessageActionRow().addComponents(disabledMenu);
+                const disabledRow = new Discord.ActionRowBuilder().addComponents(disabledMenu);
                 interaction.editReply({ components: [disabledRow] }).catch(() => {});
             });
         } catch (err) {

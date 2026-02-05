@@ -1,4 +1,4 @@
-const Discord = require("discord.js");
+const Discord = require("../../Utils/djs");
 const { replyOrEdit } = require("../../Utils/commandKit");
 const { applyWDAFooter } = require("../../Utils/embeds");
 
@@ -47,7 +47,7 @@ module.exports = {
 
             let cached = await getSettings();
 
-            const menu = new Discord.MessageSelectMenu()
+            const menu = new Discord.StringSelectMenuBuilder()
                 .setCustomId("config_evento_menu")
                 .setPlaceholder("Selecione uma categoria de configuração...")
                 .addOptions([
@@ -58,7 +58,7 @@ module.exports = {
                     { label: "Reputação (Loja)", value: "rep", description: "Preço e limite diário de reputação", emoji: "⭐" },
                 ]);
 
-            const row = new Discord.MessageActionRow().addComponents(menu);
+            const row = new Discord.ActionRowBuilder().addComponents(menu);
 
             const embed = new Discord.MessageEmbed()
                 .setTitle("🛠️ Configuração: Evento Submundo")
@@ -74,7 +74,7 @@ module.exports = {
             await interaction.editReply({ embeds: [embed], components: [row] });
             const msg = await interaction.fetchReply();
 
-            const collector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType?.StringSelect || "SELECT_MENU", idle: 10 * 60 * 1000 });
+            const collector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType.StringSelect, idle: 5 * 60 * 1000 });
 
             collector.on('collect', async i => {
                 if (i.user.id !== interaction.user.id) return safe(i.reply({ content: "Menu pessoal.", ephemeral: true }));
@@ -84,12 +84,12 @@ module.exports = {
                 const g = cached;
 
                 if (action === "general") {
-                    const rowGen = new Discord.MessageActionRow().addComponents(
-                        new Discord.MessageButton().setCustomId("cfg_toggle_active").setLabel(g.active ? "Desativar Evento" : "Ativar Evento").setStyle(g.active ? "DANGER" : "SUCCESS"),
-                        new Discord.MessageButton().setCustomId("cfg_toggle_ping").setLabel("Toggle @everyone").setStyle("SECONDARY"),
-                        new Discord.MessageButton().setCustomId("cfg_set_channel").setLabel("Definir Canal (ID)").setStyle("PRIMARY"),
-                        new Discord.MessageButton().setCustomId("cfg_toggle_police_alert").setLabel(g.announce.alertPolice ? "Alertas Polícia: ON" : "Alertas Polícia: OFF").setStyle("SECONDARY"),
-                        new Discord.MessageButton().setCustomId("cfg_set_police_role").setLabel("Cargo Polícia (ID)").setStyle("PRIMARY")
+                    const rowGen = new Discord.ActionRowBuilder().addComponents(
+                        new Discord.ButtonBuilder().setCustomId("cfg_toggle_active").setLabel(g.active ? "Desativar Evento" : "Ativar Evento").setStyle(g.active ? "DANGER" : "SUCCESS"),
+                        new Discord.ButtonBuilder().setCustomId("cfg_toggle_ping").setLabel("Toggle @everyone").setStyle("SECONDARY"),
+                        new Discord.ButtonBuilder().setCustomId("cfg_set_channel").setLabel("Definir Canal (ID)").setStyle("PRIMARY"),
+                        new Discord.ButtonBuilder().setCustomId("cfg_toggle_police_alert").setLabel(g.announce.alertPolice ? "Alertas Polícia: ON" : "Alertas Polícia: OFF").setStyle("SECONDARY"),
+                        new Discord.ButtonBuilder().setCustomId("cfg_set_police_role").setLabel("Cargo Polícia (ID)").setStyle("PRIMARY")
                     );
                     return safe(i.editReply({ content: "**Configuração Geral**", embeds: [], components: [rowGen] }));
                 }
@@ -104,8 +104,8 @@ module.exports = {
                         `**Operação de Checkpoints:** ${((p.checkpointOp || 0) * 100).toFixed(1)}%`
                     ].join("\n");
 
-                    const rowProbs = new Discord.MessageActionRow().addComponents(
-                        new Discord.MessageButton().setCustomId("cfg_edit_probs").setLabel("Editar Probabilidades").setStyle("PRIMARY")
+                    const rowProbs = new Discord.ActionRowBuilder().addComponents(
+                        new Discord.ButtonBuilder().setCustomId("cfg_edit_probs").setLabel("Editar Probabilidades").setStyle("PRIMARY")
                     );
 
                     const e = new Discord.MessageEmbed()
@@ -125,8 +125,8 @@ module.exports = {
                         `**Cooldown de Eventos:** ${Math.max(0, Math.floor((c.eventCooldownMs || 0) / 60000))} min`
                     ].join("\n");
 
-                    const rowEco = new Discord.MessageActionRow().addComponents(
-                        new Discord.MessageButton().setCustomId("cfg_edit_eco").setLabel("Editar Valores").setStyle("PRIMARY")
+                    const rowEco = new Discord.ActionRowBuilder().addComponents(
+                        new Discord.ButtonBuilder().setCustomId("cfg_edit_eco").setLabel("Editar Valores").setStyle("PRIMARY")
                     );
 
                     const e = new Discord.MessageEmbed()
@@ -145,8 +145,8 @@ module.exports = {
                         `**Nível 4+:** ${Math.max(0, Math.floor(a.level4 || 0))} mensagens`,
                     ].join("\n");
 
-                    const rowAct = new Discord.MessageActionRow().addComponents(
-                        new Discord.MessageButton().setCustomId("cfg_edit_activity").setLabel("Editar Desafios").setStyle("PRIMARY")
+                    const rowAct = new Discord.ActionRowBuilder().addComponents(
+                        new Discord.ButtonBuilder().setCustomId("cfg_edit_activity").setLabel("Editar Desafios").setStyle("PRIMARY")
                     );
 
                     const e = new Discord.MessageEmbed()
@@ -165,8 +165,8 @@ module.exports = {
                         `**Limite por dia:** ${Math.max(0, Math.floor(r.maxPerDay || 0))} rep`,
                     ].join("\n");
 
-                    const rowRep = new Discord.MessageActionRow().addComponents(
-                        new Discord.MessageButton().setCustomId("cfg_edit_rep").setLabel("Editar Loja de Reputação").setStyle("PRIMARY")
+                    const rowRep = new Discord.ActionRowBuilder().addComponents(
+                        new Discord.ButtonBuilder().setCustomId("cfg_edit_rep").setLabel("Editar Loja de Reputação").setStyle("PRIMARY")
                     );
 
                     const e = new Discord.MessageEmbed()
@@ -179,7 +179,7 @@ module.exports = {
             });
 
             // Button Collector for sub-actions
-            const btnCollector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType?.Button || "BUTTON", idle: 10 * 60 * 1000 });
+            const btnCollector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType.Button, idle: 5 * 60 * 1000 });
             
             btnCollector.on('collect', async i => {
                 if (i.user.id !== interaction.user.id) return safe(i.reply({ content: "Menu pessoal.", ephemeral: true }));
@@ -205,7 +205,7 @@ module.exports = {
                 if (i.customId === "cfg_set_channel") {
                     const modal = new Discord.Modal().setCustomId("cfg_modal_channel").setTitle("Definir Canal");
                     const input = new Discord.TextInputComponent().setCustomId("channel_id").setLabel("ID do Canal").setStyle("SHORT").setRequired(true);
-                    modal.addComponents(new Discord.MessageActionRow().addComponents(input));
+                    modal.addComponents(new Discord.ActionRowBuilder().addComponents(input));
                     await safe(i.showModal(modal));
                 }
 
@@ -221,7 +221,7 @@ module.exports = {
                 if (i.customId === "cfg_set_police_role") {
                     const modal = new Discord.Modal().setCustomId("cfg_modal_police_role").setTitle("Cargo da Polícia");
                     const input = new Discord.TextInputComponent().setCustomId("police_role_id").setLabel("ID do cargo (vazio = nenhum)").setStyle("SHORT").setRequired(false);
-                    modal.addComponents(new Discord.MessageActionRow().addComponents(input));
+                    modal.addComponents(new Discord.ActionRowBuilder().addComponents(input));
                     await safe(i.showModal(modal));
                 }
 
@@ -230,11 +230,11 @@ module.exports = {
                     const p = cached.config.eventProbs;
                     
                     modal.addComponents(
-                        new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("prob_discount").setLabel("Desconto %").setValue((p.discount*100).toString()).setStyle("SHORT")),
-                        new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("prob_raid").setLabel("Raid %").setValue((p.raid*100).toString()).setStyle("SHORT")),
-                        new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("prob_shortage").setLabel("Escassez %").setValue((p.shortage*100).toString()).setStyle("SHORT")),
-                        new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("prob_surplus").setLabel("Superávit %").setValue((p.surplus*100).toString()).setStyle("SHORT")),
-                        new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("prob_checkpoint_op").setLabel("Checkpoint %").setValue(((p.checkpointOp || 0)*100).toString()).setStyle("SHORT"))
+                        new Discord.ActionRowBuilder().addComponents(new Discord.TextInputComponent().setCustomId("prob_discount").setLabel("Desconto %").setValue((p.discount*100).toString()).setStyle("SHORT")),
+                        new Discord.ActionRowBuilder().addComponents(new Discord.TextInputComponent().setCustomId("prob_raid").setLabel("Raid %").setValue((p.raid*100).toString()).setStyle("SHORT")),
+                        new Discord.ActionRowBuilder().addComponents(new Discord.TextInputComponent().setCustomId("prob_shortage").setLabel("Escassez %").setValue((p.shortage*100).toString()).setStyle("SHORT")),
+                        new Discord.ActionRowBuilder().addComponents(new Discord.TextInputComponent().setCustomId("prob_surplus").setLabel("Superávit %").setValue((p.surplus*100).toString()).setStyle("SHORT")),
+                        new Discord.ActionRowBuilder().addComponents(new Discord.TextInputComponent().setCustomId("prob_checkpoint_op").setLabel("Checkpoint %").setValue(((p.checkpointOp || 0)*100).toString()).setStyle("SHORT"))
                     );
                     await safe(i.showModal(modal));
                 }
@@ -244,9 +244,9 @@ module.exports = {
                     const c = cached.config;
                     
                     modal.addComponents(
-                        new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("eco_decay").setLabel("Heat Decay / Hora").setValue(c.heatDecayPerHour.toString()).setStyle("SHORT")),
-                        new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("eco_patrol").setLabel("Patrulha Base %").setValue((c.patrolBaseChance*100).toString()).setStyle("SHORT")),
-                        new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("eco_cooldown_min").setLabel("Cooldown de Eventos (min)").setValue(String(Math.max(0, Math.floor((c.eventCooldownMs || 0) / 60000)))).setStyle("SHORT"))
+                        new Discord.ActionRowBuilder().addComponents(new Discord.TextInputComponent().setCustomId("eco_decay").setLabel("Heat Decay / Hora").setValue(c.heatDecayPerHour.toString()).setStyle("SHORT")),
+                        new Discord.ActionRowBuilder().addComponents(new Discord.TextInputComponent().setCustomId("eco_patrol").setLabel("Patrulha Base %").setValue((c.patrolBaseChance*100).toString()).setStyle("SHORT")),
+                        new Discord.ActionRowBuilder().addComponents(new Discord.TextInputComponent().setCustomId("eco_cooldown_min").setLabel("Cooldown de Eventos (min)").setValue(String(Math.max(0, Math.floor((c.eventCooldownMs || 0) / 60000)))).setStyle("SHORT"))
                     );
                     await safe(i.showModal(modal));
                 }
@@ -256,9 +256,9 @@ module.exports = {
                     const a = cached.config.activityRequirements || { level2: 50, level3: 200, level4: 500 };
 
                     modal.addComponents(
-                        new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("act_level2").setLabel("Nível 2+ (mensagens)").setValue(String(Math.max(0, Math.floor(a.level2 || 0)))).setStyle("SHORT")),
-                        new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("act_level3").setLabel("Nível 3+ (mensagens)").setValue(String(Math.max(0, Math.floor(a.level3 || 0)))).setStyle("SHORT")),
-                        new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("act_level4").setLabel("Nível 4+ (mensagens)").setValue(String(Math.max(0, Math.floor(a.level4 || 0)))).setStyle("SHORT"))
+                        new Discord.ActionRowBuilder().addComponents(new Discord.TextInputComponent().setCustomId("act_level2").setLabel("Nível 2+ (mensagens)").setValue(String(Math.max(0, Math.floor(a.level2 || 0)))).setStyle("SHORT")),
+                        new Discord.ActionRowBuilder().addComponents(new Discord.TextInputComponent().setCustomId("act_level3").setLabel("Nível 3+ (mensagens)").setValue(String(Math.max(0, Math.floor(a.level3 || 0)))).setStyle("SHORT")),
+                        new Discord.ActionRowBuilder().addComponents(new Discord.TextInputComponent().setCustomId("act_level4").setLabel("Nível 4+ (mensagens)").setValue(String(Math.max(0, Math.floor(a.level4 || 0)))).setStyle("SHORT"))
                     );
                     await safe(i.showModal(modal));
                 }
@@ -268,9 +268,9 @@ module.exports = {
                     const r = cached.config.repShop || { enabled: true, pricePerRep: 120, maxPerDay: 250 };
 
                     modal.addComponents(
-                        new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("rep_enabled").setLabel("Ativo? (sim/nao)").setValue(r.enabled ? "sim" : "nao").setStyle("SHORT")),
-                        new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("rep_price").setLabel("Preço por 1 rep").setValue(String(Math.max(1, Math.floor(r.pricePerRep || 120)))).setStyle("SHORT")),
-                        new Discord.MessageActionRow().addComponents(new Discord.TextInputComponent().setCustomId("rep_max").setLabel("Limite por dia (rep)").setValue(String(Math.max(0, Math.floor(r.maxPerDay || 0)))).setStyle("SHORT"))
+                        new Discord.ActionRowBuilder().addComponents(new Discord.TextInputComponent().setCustomId("rep_enabled").setLabel("Ativo? (sim/nao)").setValue(r.enabled ? "sim" : "nao").setStyle("SHORT")),
+                        new Discord.ActionRowBuilder().addComponents(new Discord.TextInputComponent().setCustomId("rep_price").setLabel("Preço por 1 rep").setValue(String(Math.max(1, Math.floor(r.pricePerRep || 120)))).setStyle("SHORT")),
+                        new Discord.ActionRowBuilder().addComponents(new Discord.TextInputComponent().setCustomId("rep_max").setLabel("Limite por dia (rep)").setValue(String(Math.max(0, Math.floor(r.maxPerDay || 0)))).setStyle("SHORT"))
                     );
                     await safe(i.showModal(modal));
                 }

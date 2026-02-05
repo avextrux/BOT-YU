@@ -1,4 +1,4 @@
-const Discord = require("discord.js");
+const Discord = require("../../Utils/djs");
 const { getRandomGifUrl } = require("../../Utils/giphy");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
 const { formatMoney, debitWalletIfEnough, creditWallet, errorEmbed, creditDirtyMoney, debitDirtyMoneyIfEnough } = require("../../Utils/economy");
@@ -188,7 +188,7 @@ module.exports = {
             const bmUser = await getUserEvent(client, interaction.guildId, interaction.user.id);
             const rep = ensureRep(bmUser);
 
-            const menu = new Discord.MessageSelectMenu()
+            const menu = new Discord.StringSelectMenuBuilder()
                 .setCustomId("mercadonegro_hub_action")
                 .setPlaceholder("Selecionar comando...")
                 .addOptions([
@@ -209,7 +209,7 @@ module.exports = {
                     { label: "Ativar/desativar (ADM)", value: "toggle", description: "Liga/desliga o evento" },
                 ]);
 
-            const row = new Discord.MessageActionRow().addComponents(menu);
+            const row = new Discord.ActionRowBuilder().addComponents(menu);
 
             const home = new Discord.MessageEmbed()
                 .setTitle("💣 HUB DO MERCADO NEGRO")
@@ -224,7 +224,7 @@ module.exports = {
             await replyOrEdit(interaction, { embeds: [home], components: [row], ephemeral: true });
             const msg = await interaction.fetchReply();
 
-            const collector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType?.StringSelect || "SELECT_MENU", idle: 10 * 60 * 1000 });
+            const collector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType.StringSelect, idle: 5 * 60 * 1000 });
             collector.on("collect", async (i) => {
                 try {
                     if (i.user.id !== interaction.user.id) return safe(i.reply({ content: "❌ Esse menu é do autor do comando.", ephemeral: true }));
@@ -985,7 +985,7 @@ module.exports = {
 
             collector.on("end", () => {
                 const disabledMenu = menu.setDisabled(true).setPlaceholder("Menu expirado");
-                const disabledRow = new Discord.MessageActionRow().addComponents(disabledMenu);
+                const disabledRow = new Discord.ActionRowBuilder().addComponents(disabledMenu);
                 interaction.editReply({ components: [disabledRow] }).catch(() => {});
             });
         } catch (err) {

@@ -33,6 +33,12 @@ async function replyOrEdit(interaction, payload) {
     return safe(interaction.reply(normalizeReplyPayload(payload)));
 }
 
+async function replyOrEditFetch(interaction, payload) {
+    await replyOrEdit(interaction, payload);
+    if (typeof interaction?.fetchReply !== "function") return null;
+    return safe(interaction.fetchReply());
+}
+
 async function ensureDeferred(interaction, { ephemeral = false } = {}) {
     if (!interaction || hasReplied(interaction)) return null;
     const flag = Discord.MessageFlags?.Ephemeral;
@@ -96,6 +102,7 @@ function withErrorBoundary(runFn, { name } = {}) {
 module.exports = {
     hasReplied,
     replyOrEdit,
+    replyOrEditFetch,
     ensureDeferred,
     requireUserPerms,
     requireBotPerms,

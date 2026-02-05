@@ -1,7 +1,7 @@
-const Discord = require("discord.js");
+const Discord = require("../../Utils/djs");
 const logger = require("../../Utils/logger");
 const { safe } = require("../../Utils/interactions");
-const { replyOrEdit } = require("../../Utils/commandKit");
+const { replyOrEdit, replyOrEditFetch } = require("../../Utils/commandKit");
 
 const QUESTIONS = [
     {
@@ -45,11 +45,11 @@ module.exports = {
             const item = QUESTIONS[Math.floor(Math.random() * QUESTIONS.length)];
             const correct = item.c;
 
-            const row = new Discord.MessageActionRow().addComponents(
-                new Discord.MessageButton().setCustomId("q0").setLabel(item.a[0]).setStyle("PRIMARY"),
-                new Discord.MessageButton().setCustomId("q1").setLabel(item.a[1]).setStyle("PRIMARY"),
-                new Discord.MessageButton().setCustomId("q2").setLabel(item.a[2]).setStyle("PRIMARY"),
-                new Discord.MessageButton().setCustomId("q3").setLabel(item.a[3]).setStyle("PRIMARY")
+            const row = new Discord.ActionRowBuilder().addComponents(
+                new Discord.ButtonBuilder().setCustomId("q0").setLabel(item.a[0]).setStyle("PRIMARY"),
+                new Discord.ButtonBuilder().setCustomId("q1").setLabel(item.a[1]).setStyle("PRIMARY"),
+                new Discord.ButtonBuilder().setCustomId("q2").setLabel(item.a[2]).setStyle("PRIMARY"),
+                new Discord.ButtonBuilder().setCustomId("q3").setLabel(item.a[3]).setStyle("PRIMARY")
             );
 
             const embed = new Discord.MessageEmbed()
@@ -58,9 +58,11 @@ module.exports = {
                 .setDescription(item.q)
                 .setFooter({ text: "Você tem 20 segundos." });
 
-            const msg = await interaction.reply({ embeds: [embed], components: [row], fetchReply: true });
+            const msg = await replyOrEditFetch(interaction, { embeds: [embed], components: [row] });
+            if (!msg) return;
 
             const collector = msg.createMessageComponentCollector({
+                componentType: Discord.ComponentType.Button,
                 filter: (i) => i.user.id === interaction.user.id,
                 time: 20000,
                 max: 1
@@ -107,4 +109,3 @@ module.exports = {
         }
     }
 };
-

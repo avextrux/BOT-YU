@@ -1,7 +1,8 @@
-const Discord = require("discord.js");
+const Discord = require("../../Utils/djs");
 const fs = require("fs");
 const path = require("path");
 const { replyOrEdit } = require("../../Utils/commandKit");
+const { applyWDAFooter } = require("../../Utils/embeds");
 
 module.exports = {
     name: "help",
@@ -149,17 +150,17 @@ module.exports = {
                 .setThumbnail(client.user.displayAvatarURL())
                 .setFooter({ text: `WDA • Direitos reservados • Solicitado por ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() });
 
-            const homeRow = new Discord.MessageActionRow().addComponents(
-                new Discord.MessageButton().setCustomId("help_home_event").setLabel("Evento Submundo").setStyle("DANGER"),
-                new Discord.MessageButton().setCustomId("help_home_cmds").setLabel("Comandos").setStyle("PRIMARY"),
-                new Discord.MessageButton().setCustomId("help_home_admin").setLabel("Admin").setStyle("SECONDARY").setDisabled(!hasAdminPerm)
+            const homeRow = new Discord.ActionRowBuilder().addComponents(
+                new Discord.ButtonBuilder().setCustomId("help_home_event").setLabel("Evento Submundo").setStyle("DANGER"),
+                new Discord.ButtonBuilder().setCustomId("help_home_cmds").setLabel("Comandos").setStyle("PRIMARY"),
+                new Discord.ButtonBuilder().setCustomId("help_home_admin").setLabel("Admin").setStyle("SECONDARY").setDisabled(!hasAdminPerm)
             );
 
             await interaction.editReply({ embeds: [embedHome], components: [homeRow] });
             const msg = await interaction.fetchReply();
 
-            const backRow = new Discord.MessageActionRow().addComponents(
-                new Discord.MessageButton().setCustomId("help_back_home").setLabel("Voltar").setStyle("SECONDARY")
+            const backRow = new Discord.ActionRowBuilder().addComponents(
+                new Discord.ButtonBuilder().setCustomId("help_back_home").setLabel("Voltar").setStyle("SECONDARY")
             );
 
             const eventHubs = [
@@ -171,7 +172,7 @@ module.exports = {
                 { id: "config_evento", label: "Config Evento (ADM)", value: "hub_config_evento", emoji: "🛠️", file: path.join(commandsRoot, "Admin", "config_evento.js") },
             ];
 
-            const hubSelect = new Discord.MessageSelectMenu()
+            const hubSelect = new Discord.StringSelectMenuBuilder()
                 .setCustomId("help_select_hub")
                 .setPlaceholder("Ver ações de um HUB...")
                 .addOptions(
@@ -183,9 +184,9 @@ module.exports = {
                     }))
                 );
 
-            const hubRow = new Discord.MessageActionRow().addComponents(hubSelect);
+            const hubRow = new Discord.ActionRowBuilder().addComponents(hubSelect);
 
-            const generalSelect = new Discord.MessageSelectMenu()
+            const generalSelect = new Discord.StringSelectMenuBuilder()
                 .setCustomId("help_select_category_general")
                 .setPlaceholder("Escolha uma categoria...")
                 .addOptions(
@@ -200,9 +201,9 @@ module.exports = {
                         .slice(0, 25)
                 );
 
-            const generalRow = new Discord.MessageActionRow().addComponents(generalSelect);
+            const generalRow = new Discord.ActionRowBuilder().addComponents(generalSelect);
 
-            const adminSelect = new Discord.MessageSelectMenu()
+            const adminSelect = new Discord.StringSelectMenuBuilder()
                 .setCustomId("help_select_category_admin")
                 .setPlaceholder("Escolha uma área (staff)...")
                 .addOptions(
@@ -214,9 +215,9 @@ module.exports = {
                     }))
                 );
 
-            const adminRow = new Discord.MessageActionRow().addComponents(adminSelect);
+            const adminRow = new Discord.ActionRowBuilder().addComponents(adminSelect);
 
-            const collector = msg.createMessageComponentCollector({ idle: 10 * 60 * 1000 });
+            const collector = msg.createMessageComponentCollector({ idle: 5 * 60 * 1000 });
 
             collector.on("collect", async (i) => {
                 try {
@@ -240,6 +241,7 @@ module.exports = {
                                     "Admin pode ajustar chances em `/config_evento`.",
                                 ].join("\n")
                             );
+                        applyWDAFooter(e);
                         return safe(i.editReply({ embeds: [e], components: [hubRow, backRow] }));
                     }
 
@@ -248,6 +250,7 @@ module.exports = {
                             .setTitle("🤖 Comandos — Cascata")
                             .setColor("BLUE")
                             .setDescription("Escolha uma categoria para ver os comandos em formato cascata.");
+                        applyWDAFooter(e);
                         return safe(i.editReply({ embeds: [e], components: [generalRow, backRow] }));
                     }
 
@@ -257,6 +260,7 @@ module.exports = {
                             .setTitle("👑 Admin — Cascata")
                             .setColor("GOLD")
                             .setDescription("Escolha uma área para ver comandos em cascata.");
+                        applyWDAFooter(e);
                         return safe(i.editReply({ embeds: [e], components: [adminRow, backRow] }));
                     }
 
@@ -267,6 +271,7 @@ module.exports = {
                             .setTitle(`${categoryEmoji(cat)} ${cat} — Cascata`)
                             .setColor("BLUE")
                             .setDescription(text || "Sem comandos.");
+                        applyWDAFooter(e);
                         return safe(i.editReply({ embeds: [e], components: [generalRow, backRow] }));
                     }
 
@@ -278,6 +283,7 @@ module.exports = {
                             .setTitle(`${categoryEmoji(cat)} ${cat} — Cascata (Staff)`)
                             .setColor("GOLD")
                             .setDescription(text || "Sem comandos.");
+                        applyWDAFooter(e);
                         return safe(i.editReply({ embeds: [e], components: [adminRow, backRow] }));
                     }
 
@@ -293,6 +299,7 @@ module.exports = {
                             .setTitle(`${hub.emoji} /${hub.id} — Ações`)
                             .setColor("DARK_BUT_NOT_BLACK")
                             .setDescription(descLines.length ? descLines.join("\n").slice(0, 3900) : "Sem ações cadastradas.");
+                        applyWDAFooter(e);
                         return safe(i.editReply({ embeds: [e], components: [hubRow, backRow] }));
                     }
                 } catch (err) {
@@ -302,8 +309,8 @@ module.exports = {
             });
 
             collector.on("end", () => {
-                const disabledRow = new Discord.MessageActionRow().addComponents(
-                    new Discord.MessageButton().setCustomId("expired").setLabel("Menu expirado").setStyle("SECONDARY").setDisabled(true)
+                const disabledRow = new Discord.ActionRowBuilder().addComponents(
+                    new Discord.ButtonBuilder().setCustomId("expired").setLabel("Menu expirado").setStyle("SECONDARY").setDisabled(true)
                 );
                 interaction.editReply({ components: [disabledRow] }).catch(() => {});
             });

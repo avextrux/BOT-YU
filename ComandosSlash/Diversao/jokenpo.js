@@ -1,4 +1,5 @@
-const Discord = require("discord.js");
+const Discord = require("../../Utils/djs");
+const { replyOrEditFetch } = require("../../Utils/commandKit");
 
 module.exports = {
     name: "jokenpo",
@@ -12,16 +13,18 @@ module.exports = {
                 .setDescription("Escolha sua jogada abaixo:")
                 .setFooter({ text: "Você tem 30 segundos para escolher." });
 
-            const row = new Discord.MessageActionRow()
+            const row = new Discord.ActionRowBuilder()
                 .addComponents(
-                    new Discord.MessageButton().setCustomId('pedra').setLabel('Pedra').setStyle('SECONDARY').setEmoji('🪨'),
-                    new Discord.MessageButton().setCustomId('papel').setLabel('Papel').setStyle('SECONDARY').setEmoji('📄'),
-                    new Discord.MessageButton().setCustomId('tesoura').setLabel('Tesoura').setStyle('SECONDARY').setEmoji('✂️')
+                    new Discord.ButtonBuilder().setCustomId('pedra').setLabel('Pedra').setStyle('SECONDARY').setEmoji('🪨'),
+                    new Discord.ButtonBuilder().setCustomId('papel').setLabel('Papel').setStyle('SECONDARY').setEmoji('📄'),
+                    new Discord.ButtonBuilder().setCustomId('tesoura').setLabel('Tesoura').setStyle('SECONDARY').setEmoji('✂️')
                 );
 
-            const msg = await interaction.reply({ embeds: [embed], components: [row], fetchReply: true });
+            const msg = await replyOrEditFetch(interaction, { embeds: [embed], components: [row] });
+            if (!msg) return;
 
             const collector = msg.createMessageComponentCollector({ 
+                componentType: Discord.ComponentType.Button,
                 filter: i => i.user.id === interaction.user.id, 
                 time: 30000, 
                 max: 1 
