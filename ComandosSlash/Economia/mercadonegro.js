@@ -9,6 +9,7 @@ const { ensureTerritories, applyCriminalInfluence, applyPoliceInfluence } = requ
 const { safe, promptOneLine } = require("../../Utils/interactions");
 const logger = require("../../Utils/logger");
 const { replyOrEdit } = require("../../Utils/commandKit");
+const { applyWDAFooter } = require("../../Utils/embeds");
 
 function isAdmin(interaction) {
     return (
@@ -218,6 +219,7 @@ module.exports = {
                 .addField("Reputação", `**${rep.name}** (${rep.score} pts)`, true)
                 .addField("Heat", `**${Math.floor(bmUser.heat.level || 0)}**`, true)
                 .addField("Dica", "Comece em **Vendedores (NPCs)** → **Comprar item**.", false);
+            applyWDAFooter(home);
 
             await replyOrEdit(interaction, { embeds: [home], components: [row], ephemeral: true });
             const msg = await interaction.fetchReply();

@@ -172,7 +172,7 @@ module.exports = {
                     false
                 )
                 .addField("Territórios", "Use a opção **Territórios** para ver quem domina cada distrito.", false)
-                .setFooter({ text: `Seu status no evento é salvo no servidor. Heat/rep vem do /mercadonegro.` });
+                .setFooter({ text: `WDA • Direitos reservados • Seu status no evento é salvo no servidor. Heat/rep vem do /mercadonegro.` });
 
             await replyOrEdit(interaction, { embeds: [home], components: [row], ephemeral: true });
             const msg = await interaction.fetchReply();

@@ -8,6 +8,7 @@ const { ensureTerritories, applyPoliceInfluence } = require("../../Utils/territo
 const { safe, promptOneLine, promptModal } = require("../../Utils/interactions");
 const logger = require("../../Utils/logger");
 const { replyOrEdit } = require("../../Utils/commandKit");
+const { applyWDAFooter } = require("../../Utils/embeds");
 
 function canAdmin(interaction) {
     return (
@@ -113,6 +114,7 @@ module.exports = {
                 .addField("Chefe", police.chiefId ? `<@${police.chiefId}>` : "—", true)
                 .addField("Oficiais", String((police.officers || []).length), true)
                 .addField("Seu status", isMeOfficer ? "✅ Polícia" : "⚠️ Civil", true);
+            applyWDAFooter(home);
 
             await replyOrEdit(interaction, { embeds: [home], components: [row], ephemeral: true });
             const msg = await interaction.fetchReply();
