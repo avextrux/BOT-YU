@@ -27,6 +27,7 @@ module.exports = {
     name: "eleicao",
     description: "Hub de Eleições e Política (Votar, Candidatar, Comprar Voto)",
     type: "CHAT_INPUT",
+    autoDefer: { ephemeral: true },
     hubActions: [
         "Status & Placar — ver quem está ganhando",
         "Candidatar-se — entrar na disputa",
@@ -75,9 +76,10 @@ module.exports = {
                 )
                 .setThumbnail("https://cdn-icons-png.flaticon.com/512/927/927253.png");
 
-            const msg = await interaction.reply({ embeds: [embed], components: [row], fetchReply: true, ephemeral: true });
+            await replyOrEdit(interaction, { embeds: [embed], components: [row], ephemeral: true });
+            const msg = await interaction.fetchReply();
 
-            const collector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType?.StringSelect || "SELECT_MENU", idle: 120000 });
+            const collector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType?.StringSelect || "SELECT_MENU", idle: 10 * 60 * 1000 });
 
             collector.on('collect', async i => {
                 if (i.user.id !== interaction.user.id) return safe(i.reply({ content: "Menu pessoal.", ephemeral: true }));

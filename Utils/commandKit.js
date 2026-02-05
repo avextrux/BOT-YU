@@ -65,6 +65,7 @@ async function requireBotPerms(interaction, perms, { message, channel } = {}) {
 
 function withErrorBoundary(runFn, { name } = {}) {
     return async (client, interaction, cmd) => {
+        const startedAt = Date.now();
         try {
             return await runFn(client, interaction, cmd);
         } catch (err) {
@@ -73,8 +74,19 @@ function withErrorBoundary(runFn, { name } = {}) {
                 guildId: interaction?.guildId,
                 userId: interaction?.user?.id,
                 error: String(err?.message || err),
+                stack: err?.stack ? String(err.stack).slice(0, 1800) : undefined,
             });
             return replyOrEdit(interaction, { embeds: [statusEmbed("error", "Ocorreu um erro ao executar este comando.", { title: "Erro" })], ephemeral: true });
+        } finally {
+            const ms = Date.now() - startedAt;
+            if (ms >= 2000) {
+                logger.warn("Comando lento", {
+                    name: name || cmd?.name || interaction?.commandName,
+                    guildId: interaction?.guildId,
+                    userId: interaction?.user?.id,
+                    ms,
+                });
+            }
         }
     };
 }

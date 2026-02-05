@@ -114,20 +114,52 @@ function withAliases(base) {
             return { ...rest, flags };
         };
 
-        const wrap = (obj, method) => {
+        const stripForEdit = (options) => {
+            if (!options || typeof options !== "object") return options;
+            const { fetchReply, flags, ...rest } = options;
+            return rest;
+        };
+
+        const wrapReply = (obj) => {
+            const fn = obj.reply;
+            if (typeof fn !== "function") return;
+            if (fn.__compatWrapped) return;
+            const wrapped = function (options, ...rest) {
+                const wantsFetch = Boolean(options?.fetchReply);
+                const normalized = normalize(options);
+
+                if (this?.deferred && !this?.replied && typeof this.editReply === "function") {
+                    const payload = stripForEdit(normalized);
+                    const p = this.editReply(payload);
+                    return wantsFetch && typeof this.fetchReply === "function" ? Promise.resolve(p).then(() => this.fetchReply()) : p;
+                }
+
+                if (this?.replied && typeof this.followUp === "function") {
+                    const payload = stripForEdit(normalized);
+                    const p = this.followUp(payload);
+                    return wantsFetch && typeof this.fetchReply === "function" ? Promise.resolve(p).then(() => this.fetchReply()) : p;
+                }
+
+                return fn.call(this, normalized, ...rest);
+            };
+            wrapped.__compatWrapped = true;
+            obj.reply = wrapped;
+        };
+
+        const wrapSimple = (obj, method) => {
             const fn = obj[method];
             if (typeof fn !== "function") return;
-            if (fn.__ephemeralCompatWrapped) return;
+            if (fn.__compatWrapped) return;
             const wrapped = function (options, ...rest) {
                 return fn.call(this, normalize(options), ...rest);
             };
-            wrapped.__ephemeralCompatWrapped = true;
+            wrapped.__compatWrapped = true;
             obj[method] = wrapped;
         };
 
-        wrap(out.BaseInteraction.prototype, "reply");
-        wrap(out.BaseInteraction.prototype, "deferReply");
-        wrap(out.BaseInteraction.prototype, "followUp");
+        wrapReply(out.BaseInteraction.prototype);
+        wrapSimple(out.BaseInteraction.prototype, "deferReply");
+        wrapSimple(out.BaseInteraction.prototype, "followUp");
     }
 
     return out;

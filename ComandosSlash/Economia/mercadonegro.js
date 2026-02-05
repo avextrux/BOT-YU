@@ -159,6 +159,7 @@ module.exports = {
     name: "mercadonegro",
     description: "Hub do Mercado Negro: NPCs, itens, reputação, missões e risco",
     type: "CHAT_INPUT",
+    autoDefer: { ephemeral: true },
     hubActions: [
         "Status (reputação, heat e patrulha)",
         "Vendedores (NPCs) — estoque e preços",
@@ -179,7 +180,7 @@ module.exports = {
     run: async (client, interaction) => {
         try {
             if (!client.blackMarketGuilddb || !client.blackMarketUserdb || !client.userdb || !client.guildEconomydb) {
-                return interaction.reply({ content: "❌ Banco do evento indisponível.", ephemeral: true });
+                return replyOrEdit(interaction, { content: "❌ Banco do evento indisponível.", ephemeral: true });
             }
 
             const bmGuild = await getGuildEvent(client, interaction.guildId);
@@ -218,9 +219,10 @@ module.exports = {
                 .addField("Heat", `**${Math.floor(bmUser.heat.level || 0)}**`, true)
                 .addField("Dica", "Comece em **Vendedores (NPCs)** → **Comprar item**.", false);
 
-            const msg = await interaction.reply({ embeds: [home], components: [row], fetchReply: true, ephemeral: true });
+            await replyOrEdit(interaction, { embeds: [home], components: [row], ephemeral: true });
+            const msg = await interaction.fetchReply();
 
-            const collector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType?.StringSelect || "SELECT_MENU", idle: 120000 });
+            const collector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType?.StringSelect || "SELECT_MENU", idle: 10 * 60 * 1000 });
             collector.on("collect", async (i) => {
                 try {
                     if (i.user.id !== interaction.user.id) return safe(i.reply({ content: "❌ Esse menu é do autor do comando.", ephemeral: true }));
@@ -974,7 +976,7 @@ module.exports = {
                         return safe(i.editReply({ embeds: [e], components: [row] }));
                     }
                 } catch (err) {
-                    logger.error("Erro no hub do Mercado Negro", { error: String(err?.message || err) });
+                    logger.error("Erro no hub do Mercado Negro", { error: String(err?.message || err), stack: err?.stack ? String(err.stack).slice(0, 1800) : undefined });
                     safe(i.followUp({ content: "Erro no hub do Mercado Negro.", ephemeral: true })).catch(() => {});
                 }
             });
@@ -985,7 +987,7 @@ module.exports = {
                 interaction.editReply({ components: [disabledRow] }).catch(() => {});
             });
         } catch (err) {
-            logger.error("Erro no mercado negro", { error: String(err?.message || err) });
+            logger.error("Erro no mercado negro", { error: String(err?.message || err), stack: err?.stack ? String(err.stack).slice(0, 1800) : undefined });
             replyOrEdit(interaction, { content: "Erro no mercado negro.", ephemeral: true }).catch(() => {});
         }
     },

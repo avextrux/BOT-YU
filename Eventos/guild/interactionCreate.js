@@ -36,11 +36,24 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     const exec = withErrorBoundary(async () => {
+        const ephemeralDefault = Boolean(cmd.ephemeralDefault);
+        const shouldDeferQuickly = !cmd.autoDefer;
+        const timer = shouldDeferQuickly
+            ? setTimeout(() => {
+                  if (interaction.deferred || interaction.replied) return;
+                  ensureDeferred(interaction, { ephemeral: ephemeralDefault }).catch(() => {});
+              }, 1200)
+            : null;
+
         if (cmd.autoDefer) {
             const ephemeral = typeof cmd.autoDefer === "object" ? Boolean(cmd.autoDefer.ephemeral) : Boolean(cmd.ephemeralDefault);
             await ensureDeferred(interaction, { ephemeral });
         }
-        return cmd.run(client, interaction);
+        try {
+            return await cmd.run(client, interaction);
+        } finally {
+            if (timer) clearTimeout(timer);
+        }
     }, { name: cmd.name });
 
     await exec(client, interaction, cmd);

@@ -26,12 +26,10 @@ async function processOverdue() {
             const fine = Math.min(c.fine || 0, loserEsc);
             const loserReturn = Math.max(0, loserEsc - fine);
 
-            await client.userdb.getOrCreate(winner).catch(() => {});
-            await client.userdb.getOrCreate(loser).catch(() => {});
-
             await client.userdb.findOneAndUpdate(
                 { userID: winner },
                 {
+                    $setOnInsert: { userID: winner },
                     $inc: { "economia.money": winnerEsc + fine },
                     $push: {
                         "economia.transactions": {
@@ -48,11 +46,14 @@ async function processOverdue() {
                         },
                     },
                 }
+                ,
+                { upsert: true, setDefaultsOnInsert: true }
             );
 
             await client.userdb.findOneAndUpdate(
                 { userID: loser },
                 {
+                    $setOnInsert: { userID: loser },
                     $inc: { "economia.money": loserReturn },
                     $push: {
                         "economia.transactions": {
@@ -69,6 +70,8 @@ async function processOverdue() {
                         },
                     },
                 }
+                ,
+                { upsert: true, setDefaultsOnInsert: true }
             );
 
             c.status = "resolved";

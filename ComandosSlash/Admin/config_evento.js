@@ -1,9 +1,11 @@
 const Discord = require("discord.js");
+const { replyOrEdit } = require("../../Utils/commandKit");
 
 module.exports = {
     name: "config_evento",
     description: "Hub de Configuração do Evento Submundo (ADM)",
     type: "CHAT_INPUT",
+    autoDefer: { ephemeral: true },
     hubActions: [
         "Geral — ativar/desativar, canal e @everyone",
         "Probabilidades — raid/escassez/superávit/leilão/checkpoints",
@@ -13,7 +15,7 @@ module.exports = {
     run: async (client, interaction) => {
         try {
             if (!interaction.member.permissions.has("ADMINISTRATOR") && !interaction.member.permissions.has("MANAGE_GUILD")) {
-                return interaction.reply({ content: "❌ Apenas administradores.", ephemeral: true });
+                return replyOrEdit(interaction, { content: "❌ Apenas administradores.", ephemeral: true });
             }
 
             const safe = async (p) => {
@@ -67,9 +69,10 @@ module.exports = {
                     { name: "Ping @everyone", value: cached.announce?.pingEveryone ? "Sim" : "Não", inline: true }
                 );
 
-            const msg = await interaction.reply({ embeds: [embed], components: [row], fetchReply: true, ephemeral: true });
+            await interaction.editReply({ embeds: [embed], components: [row] });
+            const msg = await interaction.fetchReply();
 
-            const collector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType?.StringSelect || "SELECT_MENU", idle: 120000 });
+            const collector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType?.StringSelect || "SELECT_MENU", idle: 10 * 60 * 1000 });
 
             collector.on('collect', async i => {
                 if (i.user.id !== interaction.user.id) return safe(i.reply({ content: "Menu pessoal.", ephemeral: true }));
@@ -174,7 +177,7 @@ module.exports = {
             });
 
             // Button Collector for sub-actions
-            const btnCollector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType?.Button || "BUTTON", idle: 120000 });
+            const btnCollector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType?.Button || "BUTTON", idle: 10 * 60 * 1000 });
             
             btnCollector.on('collect', async i => {
                 if (i.user.id !== interaction.user.id) return safe(i.reply({ content: "Menu pessoal.", ephemeral: true }));
@@ -273,7 +276,7 @@ module.exports = {
 
         } catch (err) {
             console.error(err);
-            interaction.reply({ content: "Erro na configuração.", ephemeral: true });
+            replyOrEdit(interaction, { content: "Erro na configuração.", ephemeral: true }).catch(() => {});
         }
     }
 };

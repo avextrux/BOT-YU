@@ -28,7 +28,7 @@ client.on(Discord.Events?.ClientReady || "ready", () => {
             type, 
             url: activity.url 
         });
-    }, 15000); // Troca a cada 15 segundos
+    }, 60 * 1000);
 
     client.user.setStatus('online');
      
@@ -49,4 +49,13 @@ client.on(Discord.Events?.ClientReady || "ready", () => {
     });
 
     logger.info("Bot online", { tag: String(client.user.tag) });
+
+    setInterval(() => {
+        const m = process.memoryUsage();
+        logger.info("Memória", {
+            rssMB: Math.round(m.rss / 1024 / 1024),
+            heapUsedMB: Math.round(m.heapUsed / 1024 / 1024),
+            heapTotalMB: Math.round(m.heapTotal / 1024 / 1024),
+        });
+    }, 5 * 60 * 1000);
 });

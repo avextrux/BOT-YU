@@ -40,16 +40,22 @@ async function tick() {
         const guilds = await client.blackMarketGuilddb.find({ active: true }).limit(100);
 
         for (const g of guilds) {
+            let dirty = false;
             if (!g.config) g.config = {};
             ensureVendorState(g);
 
             if (!g.heat) g.heat = { level: 0, lastUpdateAt: 0 };
             const decayed = decayHeat({ level: g.heat.level, lastUpdateAt: g.heat.lastUpdateAt, decayPerHour: g.config.heatDecayPerHour || 4 });
-            g.heat.level = decayed.level;
-            g.heat.lastUpdateAt = decayed.lastUpdateAt;
+            if (g.heat.level !== decayed.level || g.heat.lastUpdateAt !== decayed.lastUpdateAt) {
+                g.heat.level = decayed.level;
+                g.heat.lastUpdateAt = decayed.lastUpdateAt;
+                dirty = true;
+            }
 
             if (Array.isArray(g.checkpoints) && g.checkpoints.length) {
-                g.checkpoints = g.checkpoints.filter((c) => (c.activeUntil || 0) > now).slice(-20);
+                const next = g.checkpoints.filter((c) => (c.activeUntil || 0) > now).slice(-20);
+                if (next.length !== g.checkpoints.length) dirty = true;
+                g.checkpoints = next;
             }
 
             if (!g.patrol) g.patrol = { intensity: 0.35, lastTickAt: 0 };
@@ -57,6 +63,7 @@ async function tick() {
                 const drift = (Math.random() - 0.5) * 0.1;
                 g.patrol.intensity = Math.max(0.05, Math.min(0.95, Number(g.patrol.intensity || 0.35) + drift));
                 g.patrol.lastTickAt = now;
+                dirty = true;
             }
 
             for (const v of g.vendors || []) {
@@ -65,6 +72,7 @@ async function tick() {
                 if ((v.nextRestockAt || 0) > now) continue;
                 restockVendor(g, v, catalog);
                 updateDemandEma(g, "CIGS", 0);
+                dirty = true;
             }
 
             const cfg = g.config || {};
@@ -85,6 +93,7 @@ async function tick() {
                 log.lastRaidEndAt = raidUntil;
                 activeEvents.raidUntil = 0;
                 g.patrol.intensity = Math.max(0.05, Math.min(0.95, Number(g.patrol.intensity || 0.35) - 0.25));
+                dirty = true;
                 const embed = new Discord.MessageEmbed()
                     .setTitle("✅ Raid encerrada")
                     .setColor("DARK_GREEN")
@@ -97,6 +106,7 @@ async function tick() {
                 log.lastShortageEndAt = shortageUntil;
                 const endedItemId = activeEvents.shortage?.itemId || null;
                 activeEvents.shortage = { until: 0, itemId: null };
+                dirty = true;
                 const itemName = endedItemId && ITEMS[endedItemId] ? ITEMS[endedItemId].name : "o item";
                 const embed = new Discord.MessageEmbed()
                     .setTitle("✅ Escassez encerrada")
@@ -110,6 +120,7 @@ async function tick() {
                 log.lastSurplusEndAt = surplusUntil;
                 const endedItemId = activeEvents.surplus?.itemId || null;
                 activeEvents.surplus = { until: 0, itemId: null };
+                dirty = true;
                 const itemName = endedItemId && ITEMS[endedItemId] ? ITEMS[endedItemId].name : "o item";
                 const embed = new Discord.MessageEmbed()
                     .setTitle("✅ Superávit encerrado")
@@ -123,6 +134,7 @@ async function tick() {
                 log.lastDiscountEndAt = discountUntil;
                 cfg.discountUntil = 0;
                 cfg.discountMultiplier = 1.0;
+                dirty = true;
                 const embed = new Discord.MessageEmbed()
                     .setTitle("✅ Leilão encerrado")
                     .setColor("DARK_GREEN")
@@ -134,6 +146,7 @@ async function tick() {
             if (checkpointOpUntil > 0 && checkpointOpUntil <= now && log.lastCheckpointOpEndAt !== checkpointOpUntil) {
                 log.lastCheckpointOpEndAt = checkpointOpUntil;
                 activeEvents.checkpointOpUntil = 0;
+                dirty = true;
                 const embed = new Discord.MessageEmbed()
                     .setTitle("✅ Operação de Checkpoints encerrada")
                     .setColor("DARK_GREEN")
@@ -159,6 +172,7 @@ async function tick() {
                     cfg.eventCooldownUntil = now + Math.max(0, Math.floor(cfg.eventCooldownMs || 0));
                     activeEvents.raidUntil = now + duration;
                     g.patrol.intensity = Math.min(1.0, (g.patrol.intensity || 0.35) + 0.4);
+                    dirty = true;
                     
                     const embed = new Discord.MessageEmbed()
                         .setTitle("🚨 RAID POLICIAL EM ANDAMENTO")
@@ -166,7 +180,7 @@ async function tick() {
                         .setDescription(`A polícia iniciou uma operação massiva!\n\n👮 **Patrulha:** Aumentada drasticamente.\n📈 **Preços:** +25% (Risco).\n⚠️ **Interceptação:** Muito alta.\n\nDuração: 20 minutos.`);
                     await trySendToChannel(channelId, { content, embeds: [embed] });
                     g.config.activeEvents = activeEvents;
-                    await g.save();
+                    if (dirty) await g.save().catch(() => {});
                     continue;
                 }
 
@@ -180,6 +194,7 @@ async function tick() {
                     cfg.eventCooldownUntil = now + Math.max(0, Math.floor(cfg.eventCooldownMs || 0));
                     
                     activeEvents.shortage = { until: now + duration, itemId: itemKey };
+                    dirty = true;
                     
                     const embed = new Discord.MessageEmbed()
                         .setTitle("📉 ESCASSEZ DE MERCADO")
@@ -187,7 +202,7 @@ async function tick() {
                         .setDescription(`Há uma falta de **${item.name}** no mercado.\n\n💰 **Preço:** x2.0 (Dobro).\n\nDuração: 30 minutos.`);
                     await trySendToChannel(channelId, { content, embeds: [embed] });
                     g.config.activeEvents = activeEvents;
-                    await g.save();
+                    if (dirty) await g.save().catch(() => {});
                     continue;
                 }
 
@@ -201,6 +216,7 @@ async function tick() {
                     cfg.eventCooldownUntil = now + Math.max(0, Math.floor(cfg.eventCooldownMs || 0));
                     
                     activeEvents.surplus = { until: now + duration, itemId: itemKey };
+                    dirty = true;
                     
                     const embed = new Discord.MessageEmbed()
                         .setTitle("📦 SUPERÁVIT DE ESTOQUE")
@@ -208,7 +224,7 @@ async function tick() {
                         .setDescription(`Chegou um carregamento extra de **${item.name}**.\n\n📉 **Preço:** -40% (Desconto).\n\nDuração: 30 minutos.`);
                     await trySendToChannel(channelId, { content, embeds: [embed] });
                     g.config.activeEvents = activeEvents;
-                    await g.save();
+                    if (dirty) await g.save().catch(() => {});
                     continue;
                 }
 
@@ -218,6 +234,7 @@ async function tick() {
                     const duration = 25 * 60 * 1000;
                     cfg.eventCooldownUntil = now + Math.max(0, Math.floor(cfg.eventCooldownMs || 0));
                     activeEvents.checkpointOpUntil = now + duration;
+                    dirty = true;
 
                     const districts = Object.values(DISTRICTS || {}).filter((d) => d && d.id);
                     const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -244,7 +261,7 @@ async function tick() {
                         );
                     await trySendToChannel(channelId, { content, embeds: [embed] });
                     g.config.activeEvents = activeEvents;
-                    await g.save();
+                    if (dirty) await g.save().catch(() => {});
                     continue;
                 }
 
@@ -256,6 +273,7 @@ async function tick() {
                     cfg.discountUntil = now + minutes * 60 * 1000;
                     cfg.discountMultiplier = [0.75, 0.8, 0.85][Math.floor(Math.random() * 3)];
                     g.config = cfg;
+                    dirty = true;
 
                     const embed = new Discord.MessageEmbed()
                         .setTitle("🕶️ Evento Relâmpago: Leilão Clandestino")
@@ -269,12 +287,12 @@ async function tick() {
                             ].join("\n")
                         );
                     await trySendToChannel(channelId, { content, embeds: [embed] });
-                    await g.save();
+                    if (dirty) await g.save().catch(() => {});
                     continue;
                 }
             }
 
-            await g.save().catch(() => {});
+            if (dirty) await g.save().catch(() => {});
         }
     } catch (err) {
         console.error(err);

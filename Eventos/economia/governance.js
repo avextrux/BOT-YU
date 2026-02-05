@@ -81,15 +81,18 @@ async function expireCrises() {
     try {
         if (!client.guildEconomydb) return;
         const now = Date.now();
-        const actives = await client.guildEconomydb.find({ "crisis.active": true, "crisis.endsAt": { $gt: 0, $lte: now } }).limit(50);
-        for (const eco of actives) {
-            eco.crisis.active = false;
-            eco.crisis.type = null;
-            eco.crisis.endsAt = 0;
-            eco.crisis.multiplier = 1.0;
-            eco.crisis.blackoutUntil = 0;
-            await eco.save().catch(() => {});
-        }
+        await client.guildEconomydb.updateMany(
+            { "crisis.active": true, "crisis.endsAt": { $gt: 0, $lte: now } },
+            {
+                $set: {
+                    "crisis.active": false,
+                    "crisis.type": null,
+                    "crisis.endsAt": 0,
+                    "crisis.multiplier": 1.0,
+                    "crisis.blackoutUntil": 0,
+                },
+            }
+        );
     } catch (err) {
         console.error(err);
     }
@@ -99,6 +102,6 @@ client.on(Discord.Events?.ClientReady || "ready", () => {
     setInterval(() => {
         finalizeElections();
         expireCrises();
-    }, 30 * 1000);
+    }, 2 * 60 * 1000);
 });
 

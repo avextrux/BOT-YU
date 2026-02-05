@@ -49,6 +49,7 @@ module.exports = {
     name: "policia",
     description: "Hub da Polícia: patrulhas, checkpoints, casos, ranking e missões",
     type: "CHAT_INPUT",
+    autoDefer: { ephemeral: true },
     hubActions: [
         "Status — chefe, oficiais e seu status",
         "Candidatar — entrar para a polícia",
@@ -72,11 +73,11 @@ module.exports = {
     run: async (client, interaction) => {
         try {
             if (!client.policedb || !client.policeCasedb || !client.blackMarketGuilddb || !client.blackMarketUserdb || !client.guildEconomydb || !client.userdb) {
-                return interaction.reply({ content: "❌ Banco do evento indisponível.", ephemeral: true });
+                return replyOrEdit(interaction, { content: "❌ Banco do evento indisponível.", ephemeral: true });
             }
 
             const police = await getPolice(client, interaction.guildId);
-            if (!police) return interaction.reply({ content: "❌ DB de polícia indisponível.", ephemeral: true });
+            if (!police) return replyOrEdit(interaction, { content: "❌ DB de polícia indisponível.", ephemeral: true });
 
             const menu = new Discord.MessageSelectMenu()
                 .setCustomId("policia_hub_action")
@@ -113,8 +114,9 @@ module.exports = {
                 .addField("Oficiais", String((police.officers || []).length), true)
                 .addField("Seu status", isMeOfficer ? "✅ Polícia" : "⚠️ Civil", true);
 
-            const msg = await interaction.reply({ embeds: [home], components: [row], fetchReply: true, ephemeral: true });
-            const collector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType?.StringSelect || "SELECT_MENU", idle: 120000 });
+            await replyOrEdit(interaction, { embeds: [home], components: [row], ephemeral: true });
+            const msg = await interaction.fetchReply();
+            const collector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType?.StringSelect || "SELECT_MENU", idle: 10 * 60 * 1000 });
 
             collector.on("collect", async (i) => {
                 try {

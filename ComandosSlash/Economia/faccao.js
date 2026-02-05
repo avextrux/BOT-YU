@@ -5,6 +5,7 @@ const { DISTRICTS } = require("../../Utils/blackMarketEngine");
 const { ensureTerritories, applyCriminalInfluence, territoryIdFor } = require("../../Utils/territoryEngine");
 const { bumpRate } = require("../../Utils/antiCheat");
 const { safe, promptOneLine, promptModal } = require("../../Utils/interactions");
+const { replyOrEdit } = require("../../Utils/commandKit");
 
 const LIMITS = {
     nameMin: 3,
@@ -112,6 +113,7 @@ module.exports = {
     name: "faccao",
     description: "Hub de facções: gangues do submundo e territórios",
     type: "CHAT_INPUT",
+    autoDefer: { ephemeral: true },
     hubActions: [
         "Minha facção — status e membros",
         "Listar facções — top facções do servidor",
@@ -129,11 +131,11 @@ module.exports = {
     run: async (client, interaction) => {
         try {
             if (!client.factiondb || !client.blackMarketUserdb || !client.territorydb || !client.userdb) {
-                return interaction.reply({ content: "❌ Banco do evento indisponível.", ephemeral: true });
+                return replyOrEdit(interaction, { content: "❌ Banco do evento indisponível.", ephemeral: true });
             }
 
             const gate = await ensureEconomyAllowed(client, interaction, interaction.user.id);
-            if (!gate.ok) return interaction.reply({ embeds: [gate.embed], ephemeral: true });
+            if (!gate.ok) return replyOrEdit(interaction, { embeds: [gate.embed], ephemeral: true });
 
             await ensureTerritories(client, interaction.guildId);
 
@@ -172,9 +174,9 @@ module.exports = {
                 .addField("Territórios", "Use a opção **Territórios** para ver quem domina cada distrito.", false)
                 .setFooter({ text: `Seu status no evento é salvo no servidor. Heat/rep vem do /mercadonegro.` });
 
-            const msg = await interaction.reply({ embeds: [home], components: [row], fetchReply: true, ephemeral: true });
+            await replyOrEdit(interaction, { embeds: [home], components: [row], ephemeral: true });
+            const msg = await interaction.fetchReply();
 
-            const collector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType?.StringSelect || "SELECT_MENU", idle: 120000 });
 
             collector.on("collect", async (i) => {
                 try {
@@ -588,7 +590,7 @@ module.exports = {
             });
         } catch (err) {
             console.error(err);
-            interaction.reply({ content: "Erro na facção.", ephemeral: true }).catch(() => {});
+            replyOrEdit(interaction, { content: "Erro na facção.", ephemeral: true }).catch(() => {});
         }
     },
 };

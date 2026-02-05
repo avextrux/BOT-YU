@@ -1,9 +1,47 @@
+const Module = require("module");
+
+const originalLoad = Module._load;
+const djsPath = require.resolve("./Utils/djs");
+Module._load = function (request, parent, isMain) {
+    if (request === "discord.js" && !String(parent?.filename || "").endsWith("\\Utils\\djs.js")) {
+        return originalLoad.call(this, djsPath, parent, isMain);
+    }
+    return originalLoad.call(this, request, parent, isMain);
+};
+
 const Discord = require("./Utils/djs");
 const mongo = require("mongoose");
 const { getMongoUrl, getBotToken } = require("./Utils/config");
 const logger = require("./Utils/logger");
 
-const client = new Discord.Client({ intents: 32767 });
+const intents = [
+    Discord.GatewayIntentBits.Guilds,
+    Discord.GatewayIntentBits.GuildMembers,
+    Discord.GatewayIntentBits.GuildMessages,
+    Discord.GatewayIntentBits.MessageContent,
+];
+
+const client = new Discord.Client({
+    intents,
+    partials: [Discord.Partials.Channel],
+    allowedMentions: { parse: [], repliedUser: false },
+    makeCache: Discord.Options?.cacheWithLimits
+        ? Discord.Options.cacheWithLimits({
+              MessageManager: 0,
+              GuildMemberManager: 0,
+              PresenceManager: 0,
+              ReactionManager: 0,
+              ThreadManager: 0,
+              ThreadMemberManager: 0,
+          })
+        : undefined,
+    sweepers: Discord.Sweepers?.filterByLifetime
+        ? {
+              messages: { interval: 5 * 60, filter: Discord.Sweepers.filterByLifetime({ lifetime: 15 * 60 }) },
+              users: { interval: 10 * 60, filter: Discord.Sweepers.filterByLifetime({ lifetime: 60 * 60 }) },
+          }
+        : undefined,
+});
 
 module.exports = client;
 

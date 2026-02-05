@@ -1,11 +1,19 @@
 const Discord = require("./djs");
 
+const WDA_FOOTER_TEXT = "WDA • Direitos reservados";
+
 function colorFor(kind) {
     const k = String(kind || "").toLowerCase();
     if (k === "error") return "RED";
     if (k === "warn") return "ORANGE";
     if (k === "success") return "GREEN";
     return "BLURPLE";
+}
+
+function applyWDAFooter(embed) {
+    if (!embed || typeof embed.setFooter !== "function") return embed;
+    embed.setFooter({ text: WDA_FOOTER_TEXT });
+    return embed;
 }
 
 function simpleEmbed({ title, description, color }) {
@@ -22,4 +30,5 @@ function statusEmbed(kind, text, { title } = {}) {
 module.exports = {
     simpleEmbed,
     statusEmbed,
+    applyWDAFooter,
 };

@@ -12,8 +12,12 @@ async function tick() {
         const now = Date.now();
         const guilds = await client.blackMarketGuilddb.find({ active: true }).limit(100);
 
+        const guildIds = guilds.map((g) => g.guildID).filter(Boolean);
+        const policeDocs = await client.policedb.find({ guildID: { $in: guildIds } }).lean();
+        const policeByGuild = new Map(policeDocs.map((p) => [p.guildID, p]));
+
         for (const g of guilds) {
-            const police = await client.policedb.findOne({ guildID: g.guildID }).lean();
+            const police = policeByGuild.get(g.guildID);
             if (!police?.officers?.length) continue;
 
             const cfg = g.config || {};

@@ -1,5 +1,5 @@
 BOT-YU — LISTA DE COMANDOS
-Gerado em: 04/02/2026, 16:48:01
+Gerado em: 05/02/2026, 15:16:09
 
 Como organizar no servidor (sugestão):
 - Canal #anuncios-evento: anúncios e atrações

@@ -1,11 +1,13 @@
 const Discord = require("discord.js");
 const fs = require("fs");
 const path = require("path");
+const { replyOrEdit } = require("../../Utils/commandKit");
 
 module.exports = {
     name: "help",
     description: "Hub de ajuda e guias do servidor",
     type: "CHAT_INPUT",
+    autoDefer: { ephemeral: true },
     run: async (client, interaction) => {
         try {
             const safe = async (p) => {
@@ -145,7 +147,7 @@ module.exports = {
                     ].join("\n")
                 )
                 .setThumbnail(client.user.displayAvatarURL())
-                .setFooter({ text: `Solicitado por ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() });
+                .setFooter({ text: `WDA • Direitos reservados • Solicitado por ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() });
 
             const homeRow = new Discord.MessageActionRow().addComponents(
                 new Discord.MessageButton().setCustomId("help_home_event").setLabel("Evento Submundo").setStyle("DANGER"),
@@ -153,7 +155,8 @@ module.exports = {
                 new Discord.MessageButton().setCustomId("help_home_admin").setLabel("Admin").setStyle("SECONDARY").setDisabled(!hasAdminPerm)
             );
 
-            const msg = await interaction.reply({ embeds: [embedHome], components: [homeRow], fetchReply: true, ephemeral: true });
+            await interaction.editReply({ embeds: [embedHome], components: [homeRow] });
+            const msg = await interaction.fetchReply();
 
             const backRow = new Discord.MessageActionRow().addComponents(
                 new Discord.MessageButton().setCustomId("help_back_home").setLabel("Voltar").setStyle("SECONDARY")
@@ -213,7 +216,7 @@ module.exports = {
 
             const adminRow = new Discord.MessageActionRow().addComponents(adminSelect);
 
-            const collector = msg.createMessageComponentCollector({ idle: 120000 });
+            const collector = msg.createMessageComponentCollector({ idle: 10 * 60 * 1000 });
 
             collector.on("collect", async (i) => {
                 try {
@@ -306,7 +309,7 @@ module.exports = {
             });
         } catch (err) {
             console.error(err);
-            interaction.reply({ content: "Erro ao carregar menu de ajuda.", ephemeral: true });
+            replyOrEdit(interaction, { content: "Erro ao carregar menu de ajuda.", ephemeral: true }).catch(() => {});
         }
     }
 };
