@@ -1,5 +1,6 @@
 const Discord = require("discord.js");
 const { replyOrEdit } = require("../../Utils/commandKit");
+const { applyWDAFooter } = require("../../Utils/embeds");
 
 module.exports = {
     name: "config_evento",
@@ -68,6 +69,7 @@ module.exports = {
                     { name: "Canal", value: cached.announce?.channelId ? `<#${cached.announce.channelId}>` : "Não definido", inline: true },
                     { name: "Ping @everyone", value: cached.announce?.pingEveryone ? "Sim" : "Não", inline: true }
                 );
+            applyWDAFooter(embed);
 
             await interaction.editReply({ embeds: [embed], components: [row] });
             const msg = await interaction.fetchReply();

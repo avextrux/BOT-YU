@@ -2,6 +2,7 @@ const Discord = require("discord.js");
 const { formatMoney, debitWalletIfEnough } = require("../../Utils/economy");
 const logger = require("../../Utils/logger");
 const { replyOrEdit } = require("../../Utils/commandKit");
+const { applyWDAFooter } = require("../../Utils/embeds");
 const { 
     getVoteCount, setVoteCount, deleteVote, getTotalVotes, getSortedResults, 
     getVotePrice, ensureElectionDefaults 
@@ -75,6 +76,7 @@ module.exports = {
                     { name: "Compra de Votos", value: eco.election.voteShop?.enabled ? "✅ Ativa" : "❌ Desativada", inline: true }
                 )
                 .setThumbnail("https://cdn-icons-png.flaticon.com/512/927/927253.png");
+            applyWDAFooter(embed);
 
             await replyOrEdit(interaction, { embeds: [embed], components: [row], ephemeral: true });
             const msg = await interaction.fetchReply();
