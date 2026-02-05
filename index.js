@@ -3,7 +3,8 @@ const Module = require("module");
 const originalLoad = Module._load;
 const djsPath = require.resolve("./Utils/djs");
 Module._load = function (request, parent, isMain) {
-    if (request === "discord.js" && !String(parent?.filename || "").endsWith("\\Utils\\djs.js")) {
+    const parentFile = String(parent?.filename || "").replace(/\\/g, "/");
+    if (request === "discord.js" && !parentFile.endsWith("/Utils/djs.js")) {
         return originalLoad.call(this, djsPath, parent, isMain);
     }
     return originalLoad.call(this, request, parent, isMain);

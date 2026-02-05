@@ -36,8 +36,10 @@ async function replyOrEdit(interaction, payload) {
 async function ensureDeferred(interaction, { ephemeral = false } = {}) {
     if (!interaction || hasReplied(interaction)) return null;
     const flag = Discord.MessageFlags?.Ephemeral;
-    const flags = Boolean(ephemeral) && flag !== undefined ? flag : undefined;
-    return safe(interaction.deferReply(flags !== undefined ? { flags } : { ephemeral: Boolean(ephemeral) }));
+    const isEphemeral = Boolean(ephemeral);
+    if (isEphemeral && flag !== undefined) return safe(interaction.deferReply({ flags: flag }));
+    if (isEphemeral) return safe(interaction.deferReply({ ephemeral: true }));
+    return safe(interaction.deferReply());
 }
 
 function requireUserPerms(interaction, perms, { message } = {}) {

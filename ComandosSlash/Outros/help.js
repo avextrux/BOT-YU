@@ -260,7 +260,7 @@ module.exports = {
                         return safe(i.editReply({ embeds: [e], components: [adminRow, backRow] }));
                     }
 
-                    if (i.isSelectMenu() && i.customId === "help_select_category_general") {
+                    if (i.isStringSelectMenu?.() && i.customId === "help_select_category_general") {
                         const cat = String(i.values[0] || "").replace(/^cat_/, "");
                         const text = buildCascadeForCategory(cat);
                         const e = new Discord.MessageEmbed()
@@ -270,7 +270,7 @@ module.exports = {
                         return safe(i.editReply({ embeds: [e], components: [generalRow, backRow] }));
                     }
 
-                    if (i.isSelectMenu() && i.customId === "help_select_category_admin") {
+                    if (i.isStringSelectMenu?.() && i.customId === "help_select_category_admin") {
                         if (!hasAdminPerm) return safe(i.followUp({ content: "❌ Apenas administração.", ephemeral: true }));
                         const cat = String(i.values[0] || "").replace(/^acat_/, "");
                         const text = buildCascadeForCategory(cat);
@@ -281,7 +281,7 @@ module.exports = {
                         return safe(i.editReply({ embeds: [e], components: [adminRow, backRow] }));
                     }
 
-                    if (i.isSelectMenu() && i.customId === "help_select_hub") {
+                    if (i.isStringSelectMenu?.() && i.customId === "help_select_hub") {
                         const value = String(i.values[0] || "");
                         const hub = eventHubs.find((h) => h.value === value);
                         if (!hub) return safe(i.followUp({ content: "❌ HUB inválido.", ephemeral: true }));
