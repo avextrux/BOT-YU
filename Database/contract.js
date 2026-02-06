@@ -2,6 +2,7 @@ const { Schema, model } = require("mongoose");
 
 const ContractSchema = new Schema({
     guildID: { type: String, required: true, index: true },
+    shortId: { type: String, index: true, unique: true, sparse: true },
     createdAt: { type: Number, default: 0 },
     status: { type: String, default: "pending" },
 
@@ -34,11 +35,26 @@ const ContractSchema = new Schema({
     },
 }, { minimize: false });
 
+ContractSchema.pre("save", function (next) {
+    if (this.isNew && !this.shortId) {
+        this.shortId = String(this._id).slice(-6);
+    }
+    next();
+});
+
 ContractSchema.statics.getByShortId = async function (guildID, shortId) {
     if (!shortId) return null;
     const id = String(shortId).trim();
     if (!id) return null;
+    
+    // Prioriza busca exata por shortId indexado
+    const byShort = await this.findOne({ guildID, shortId: id });
+    if (byShort) return byShort;
+
+    // Fallback para ID completo
     if (/^[a-fA-F0-9]{24}$/.test(id)) return this.findOne({ guildID, _id: id });
+    
+    // Fallback legado (últimos 50) para contratos antigos sem shortId
     const all = await this.find({ guildID }).sort({ createdAt: -1 }).limit(50);
     return all.find((c) => String(c._id).slice(-6).toLowerCase() === id.toLowerCase()) || null;
 };

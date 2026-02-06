@@ -1,9 +1,9 @@
-const client = require("../../index");
+const { Events, EmbedBuilder } = require("discord.js");
 const { VENDORS, ITEMS } = require("../../Utils/blackMarketCatalog");
 const { ensureVendorState, decayHeat, updateDemandEma, DISTRICTS } = require("../../Utils/blackMarketEngine");
-const Discord = require("../../Utils/djs");
+const logger = require("../../Utils/logger");
 
-async function trySendToChannel(channelId, payload) {
+async function trySendToChannel(client, channelId, payload) {
     if (!channelId) return false;
     try {
         const channel =
@@ -33,275 +33,277 @@ function restockVendor(guildDoc, vendorDoc, vendorCatalog) {
     vendorDoc.specialUntil = 0;
 }
 
-async function tick() {
-    try {
-        if (!client.blackMarketGuilddb) return;
-        const now = Date.now();
-        const guilds = await client.blackMarketGuilddb.find({ active: true }).limit(100);
+module.exports = (client) => {
+    async function tick() {
+        try {
+            if (!client.blackMarketGuilddb) return;
+            const now = Date.now();
+            const guilds = await client.blackMarketGuilddb.find({ active: true }).limit(100);
 
-        for (const g of guilds) {
-            let dirty = false;
-            if (!g.config) g.config = {};
-            ensureVendorState(g);
+            for (const g of guilds) {
+                let dirty = false;
+                if (!g.config) g.config = {};
+                ensureVendorState(g);
 
-            if (!g.heat) g.heat = { level: 0, lastUpdateAt: 0 };
-            const decayed = decayHeat({ level: g.heat.level, lastUpdateAt: g.heat.lastUpdateAt, decayPerHour: g.config.heatDecayPerHour || 4 });
-            if (g.heat.level !== decayed.level || g.heat.lastUpdateAt !== decayed.lastUpdateAt) {
-                g.heat.level = decayed.level;
-                g.heat.lastUpdateAt = decayed.lastUpdateAt;
-                dirty = true;
-            }
-
-            if (Array.isArray(g.checkpoints) && g.checkpoints.length) {
-                const next = g.checkpoints.filter((c) => (c.activeUntil || 0) > now).slice(-20);
-                if (next.length !== g.checkpoints.length) dirty = true;
-                g.checkpoints = next;
-            }
-
-            if (!g.patrol) g.patrol = { intensity: 0.35, lastTickAt: 0 };
-            if (now - (g.patrol.lastTickAt || 0) > 10 * 60 * 1000) {
-                const drift = (Math.random() - 0.5) * 0.1;
-                g.patrol.intensity = Math.max(0.05, Math.min(0.95, Number(g.patrol.intensity || 0.35) + drift));
-                g.patrol.lastTickAt = now;
-                dirty = true;
-            }
-
-            for (const v of g.vendors || []) {
-                const catalog = VENDORS.find((x) => x.vendorId === v.vendorId);
-                if (!catalog) continue;
-                if ((v.nextRestockAt || 0) > now) continue;
-                restockVendor(g, v, catalog);
-                updateDemandEma(g, "CIGS", 0);
-                dirty = true;
-            }
-
-            const cfg = g.config || {};
-            if (!cfg.eventProbs) cfg.eventProbs = { discount: 0.05, raid: 0.05, shortage: 0.05, surplus: 0.05, checkpointOp: 0.03 };
-            if (!cfg.activeEvents) cfg.activeEvents = { raidUntil: 0, shortage: { until: 0 }, surplus: { until: 0 }, checkpointOpUntil: 0 };
-            if (!cfg.eventLog) cfg.eventLog = { lastRaidEndAt: 0, lastShortageEndAt: 0, lastSurplusEndAt: 0, lastDiscountEndAt: 0, lastCheckpointOpEndAt: 0 };
-            if (!cfg.eventCooldownMs) cfg.eventCooldownMs = 10 * 60 * 1000;
-            if (!cfg.eventCooldownUntil) cfg.eventCooldownUntil = 0;
-
-            const activeEvents = cfg.activeEvents;
-            const probs = cfg.eventProbs;
-            const log = cfg.eventLog;
-            const channelId = g.announce?.channelId;
-            const content = g.announce?.pingEveryone ? "@everyone" : undefined;
-
-            const raidUntil = Number(activeEvents.raidUntil || 0);
-            if (raidUntil > 0 && raidUntil <= now && log.lastRaidEndAt !== raidUntil) {
-                log.lastRaidEndAt = raidUntil;
-                activeEvents.raidUntil = 0;
-                g.patrol.intensity = Math.max(0.05, Math.min(0.95, Number(g.patrol.intensity || 0.35) - 0.25));
-                dirty = true;
-                const embed = new Discord.MessageEmbed()
-                    .setTitle("✅ Raid encerrada")
-                    .setColor("DARK_GREEN")
-                    .setDescription("A operação policial acabou. O submundo volta a respirar (por enquanto).");
-                await trySendToChannel(channelId, { embeds: [embed] });
-            }
-
-            const shortageUntil = Number(activeEvents.shortage?.until || 0);
-            if (shortageUntil > 0 && shortageUntil <= now && log.lastShortageEndAt !== shortageUntil) {
-                log.lastShortageEndAt = shortageUntil;
-                const endedItemId = activeEvents.shortage?.itemId || null;
-                activeEvents.shortage = { until: 0, itemId: null };
-                dirty = true;
-                const itemName = endedItemId && ITEMS[endedItemId] ? ITEMS[endedItemId].name : "o item";
-                const embed = new Discord.MessageEmbed()
-                    .setTitle("✅ Escassez encerrada")
-                    .setColor("DARK_GREEN")
-                    .setDescription(`O mercado voltou ao normal: **${itemName}** circula novamente.`);
-                await trySendToChannel(channelId, { embeds: [embed] });
-            }
-
-            const surplusUntil = Number(activeEvents.surplus?.until || 0);
-            if (surplusUntil > 0 && surplusUntil <= now && log.lastSurplusEndAt !== surplusUntil) {
-                log.lastSurplusEndAt = surplusUntil;
-                const endedItemId = activeEvents.surplus?.itemId || null;
-                activeEvents.surplus = { until: 0, itemId: null };
-                dirty = true;
-                const itemName = endedItemId && ITEMS[endedItemId] ? ITEMS[endedItemId].name : "o item";
-                const embed = new Discord.MessageEmbed()
-                    .setTitle("✅ Superávit encerrado")
-                    .setColor("DARK_GREEN")
-                    .setDescription(`O carregamento extra acabou: **${itemName}** voltou ao preço normal.`);
-                await trySendToChannel(channelId, { embeds: [embed] });
-            }
-
-            const discountUntil = Number(cfg.discountUntil || 0);
-            if (discountUntil > 0 && discountUntil <= now && log.lastDiscountEndAt !== discountUntil) {
-                log.lastDiscountEndAt = discountUntil;
-                cfg.discountUntil = 0;
-                cfg.discountMultiplier = 1.0;
-                dirty = true;
-                const embed = new Discord.MessageEmbed()
-                    .setTitle("✅ Leilão encerrado")
-                    .setColor("DARK_GREEN")
-                    .setDescription("O desconto acabou. Volte ao normal ou espere o próximo evento relâmpago.");
-                await trySendToChannel(channelId, { embeds: [embed] });
-            }
-
-            const checkpointOpUntil = Number(activeEvents.checkpointOpUntil || 0);
-            if (checkpointOpUntil > 0 && checkpointOpUntil <= now && log.lastCheckpointOpEndAt !== checkpointOpUntil) {
-                log.lastCheckpointOpEndAt = checkpointOpUntil;
-                activeEvents.checkpointOpUntil = 0;
-                dirty = true;
-                const embed = new Discord.MessageEmbed()
-                    .setTitle("✅ Operação de Checkpoints encerrada")
-                    .setColor("DARK_GREEN")
-                    .setDescription("Os bloqueios foram removidos. A cidade dá uma trégua.");
-                await trySendToChannel(channelId, { embeds: [embed] });
-            }
-
-            const isEventActive = 
-                (cfg.discountUntil || 0) > now || 
-                (activeEvents.raidUntil || 0) > now ||
-                (activeEvents.shortage?.until || 0) > now ||
-                (activeEvents.surplus?.until || 0) > now ||
-                (activeEvents.checkpointOpUntil || 0) > now;
-
-            if (!isEventActive && now >= Number(cfg.eventCooldownUntil || 0)) {
-                const roll = Math.random();
-                let acc = 0;
-
-                // Raid
-                acc += (probs.raid || 0.05);
-                if (roll < acc) {
-                    const duration = 20 * 60 * 1000;
-                    cfg.eventCooldownUntil = now + Math.max(0, Math.floor(cfg.eventCooldownMs || 0));
-                    activeEvents.raidUntil = now + duration;
-                    g.patrol.intensity = Math.min(1.0, (g.patrol.intensity || 0.35) + 0.4);
+                if (!g.heat) g.heat = { level: 0, lastUpdateAt: 0 };
+                const decayed = decayHeat({ level: g.heat.level, lastUpdateAt: g.heat.lastUpdateAt, decayPerHour: g.config.heatDecayPerHour || 4 });
+                if (g.heat.level !== decayed.level || g.heat.lastUpdateAt !== decayed.lastUpdateAt) {
+                    g.heat.level = decayed.level;
+                    g.heat.lastUpdateAt = decayed.lastUpdateAt;
                     dirty = true;
-                    
-                    const embed = new Discord.MessageEmbed()
-                        .setTitle("🚨 RAID POLICIAL EM ANDAMENTO")
-                        .setColor("DARK_RED")
-                        .setDescription(`A polícia iniciou uma operação massiva!\n\n👮 **Patrulha:** Aumentada drasticamente.\n📈 **Preços:** +25% (Risco).\n⚠️ **Interceptação:** Muito alta.\n\nDuração: 20 minutos.`);
-                    await trySendToChannel(channelId, { content, embeds: [embed] });
-                    g.config.activeEvents = activeEvents;
-                    if (dirty) await g.save().catch(() => {});
-                    continue;
                 }
 
-                // Shortage
-                acc += (probs.shortage || 0.05);
-                if (roll < acc) {
-                    const keys = Object.keys(ITEMS);
-                    const itemKey = keys[Math.floor(Math.random() * keys.length)];
-                    const item = ITEMS[itemKey];
-                    const duration = 30 * 60 * 1000;
-                    cfg.eventCooldownUntil = now + Math.max(0, Math.floor(cfg.eventCooldownMs || 0));
-                    
-                    activeEvents.shortage = { until: now + duration, itemId: itemKey };
-                    dirty = true;
-                    
-                    const embed = new Discord.MessageEmbed()
-                        .setTitle("📉 ESCASSEZ DE MERCADO")
-                        .setColor("ORANGE")
-                        .setDescription(`Há uma falta de **${item.name}** no mercado.\n\n💰 **Preço:** x2.0 (Dobro).\n\nDuração: 30 minutos.`);
-                    await trySendToChannel(channelId, { content, embeds: [embed] });
-                    g.config.activeEvents = activeEvents;
-                    if (dirty) await g.save().catch(() => {});
-                    continue;
+                if (Array.isArray(g.checkpoints) && g.checkpoints.length) {
+                    const next = g.checkpoints.filter((c) => (c.activeUntil || 0) > now).slice(-20);
+                    if (next.length !== g.checkpoints.length) dirty = true;
+                    g.checkpoints = next;
                 }
 
-                // Surplus
-                acc += (probs.surplus || 0.05);
-                if (roll < acc) {
-                    const keys = Object.keys(ITEMS);
-                    const itemKey = keys[Math.floor(Math.random() * keys.length)];
-                    const item = ITEMS[itemKey];
-                    const duration = 30 * 60 * 1000;
-                    cfg.eventCooldownUntil = now + Math.max(0, Math.floor(cfg.eventCooldownMs || 0));
-                    
-                    activeEvents.surplus = { until: now + duration, itemId: itemKey };
+                if (!g.patrol) g.patrol = { intensity: 0.35, lastTickAt: 0 };
+                if (now - (g.patrol.lastTickAt || 0) > 10 * 60 * 1000) {
+                    const drift = (Math.random() - 0.5) * 0.1;
+                    g.patrol.intensity = Math.max(0.05, Math.min(0.95, Number(g.patrol.intensity || 0.35) + drift));
+                    g.patrol.lastTickAt = now;
                     dirty = true;
-                    
-                    const embed = new Discord.MessageEmbed()
-                        .setTitle("📦 SUPERÁVIT DE ESTOQUE")
-                        .setColor("GREEN")
-                        .setDescription(`Chegou um carregamento extra de **${item.name}**.\n\n📉 **Preço:** -40% (Desconto).\n\nDuração: 30 minutos.`);
-                    await trySendToChannel(channelId, { content, embeds: [embed] });
-                    g.config.activeEvents = activeEvents;
-                    if (dirty) await g.save().catch(() => {});
-                    continue;
                 }
 
-                // Checkpoint Operation
-                acc += (probs.checkpointOp || 0.03);
-                if (roll < acc) {
-                    const duration = 25 * 60 * 1000;
-                    cfg.eventCooldownUntil = now + Math.max(0, Math.floor(cfg.eventCooldownMs || 0));
-                    activeEvents.checkpointOpUntil = now + duration;
+                for (const v of g.vendors || []) {
+                    const catalog = VENDORS.find((x) => x.vendorId === v.vendorId);
+                    if (!catalog) continue;
+                    if ((v.nextRestockAt || 0) > now) continue;
+                    restockVendor(g, v, catalog);
+                    updateDemandEma(g, "CIGS", 0);
                     dirty = true;
-
-                    const districts = Object.values(DISTRICTS || {}).filter((d) => d && d.id);
-                    const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-                    const d1 = districts.length ? pick(districts) : { id: "central", name: "Central" };
-                    const d2 = districts.length ? pick(districts) : { id: "central", name: "Central" };
-
-                    if (!Array.isArray(g.checkpoints)) g.checkpoints = [];
-                    g.checkpoints.push({ districtId: d1.id, activeUntil: now + duration });
-                    g.checkpoints.push({ districtId: d2.id, activeUntil: now + duration });
-                    g.checkpoints = g.checkpoints.slice(-20);
-
-                    const embed = new Discord.MessageEmbed()
-                        .setTitle("🚧 Operação de Checkpoints")
-                        .setColor("BLUE")
-                        .setDescription(
-                            [
-                                "A polícia montou bloqueios em pontos estratégicos.",
-                                "",
-                                `📍 Checkpoints: **${d1.name}** e **${d2.name}**`,
-                                "⚠️ Interceptação: aumentada nesses distritos.",
-                                "",
-                                "Duração: 25 minutos.",
-                            ].join("\n")
-                        );
-                    await trySendToChannel(channelId, { content, embeds: [embed] });
-                    g.config.activeEvents = activeEvents;
-                    if (dirty) await g.save().catch(() => {});
-                    continue;
                 }
 
-                // Discount
-                acc += (probs.discount || 0.05);
-                if (roll < acc) {
-                    const minutes = 15;
-                    cfg.eventCooldownUntil = now + Math.max(0, Math.floor(cfg.eventCooldownMs || 0));
-                    cfg.discountUntil = now + minutes * 60 * 1000;
-                    cfg.discountMultiplier = [0.75, 0.8, 0.85][Math.floor(Math.random() * 3)];
-                    g.config = cfg;
-                    dirty = true;
+                const cfg = g.config || {};
+                if (!cfg.eventProbs) cfg.eventProbs = { discount: 0.05, raid: 0.05, shortage: 0.05, surplus: 0.05, checkpointOp: 0.03 };
+                if (!cfg.activeEvents) cfg.activeEvents = { raidUntil: 0, shortage: { until: 0 }, surplus: { until: 0 }, checkpointOpUntil: 0 };
+                if (!cfg.eventLog) cfg.eventLog = { lastRaidEndAt: 0, lastShortageEndAt: 0, lastSurplusEndAt: 0, lastDiscountEndAt: 0, lastCheckpointOpEndAt: 0 };
+                if (!cfg.eventCooldownMs) cfg.eventCooldownMs = 10 * 60 * 1000;
+                if (!cfg.eventCooldownUntil) cfg.eventCooldownUntil = 0;
 
-                    const embed = new Discord.MessageEmbed()
-                        .setTitle("🕶️ Evento Relâmpago: Leilão Clandestino")
-                        .setColor("DARK_GOLD")
-                        .setDescription(
-                            [
-                                `Por **${minutes} minutos**, os preços do Mercado Negro estão com desconto.`,
-                                `Multiplicador: **x${Number(cfg.discountMultiplier || 1).toFixed(2)}**`,
-                                "",
-                                "Use: `/mercadonegro` e escolha **Vendedores** / **Comprar item**.",
-                            ].join("\n")
-                        );
-                    await trySendToChannel(channelId, { content, embeds: [embed] });
-                    if (dirty) await g.save().catch(() => {});
-                    continue;
+                const activeEvents = cfg.activeEvents;
+                const probs = cfg.eventProbs;
+                const log = cfg.eventLog;
+                const channelId = g.announce?.channelId;
+                const content = g.announce?.pingEveryone ? "@everyone" : undefined;
+
+                const raidUntil = Number(activeEvents.raidUntil || 0);
+                if (raidUntil > 0 && raidUntil <= now && log.lastRaidEndAt !== raidUntil) {
+                    log.lastRaidEndAt = raidUntil;
+                    activeEvents.raidUntil = 0;
+                    g.patrol.intensity = Math.max(0.05, Math.min(0.95, Number(g.patrol.intensity || 0.35) - 0.25));
+                    dirty = true;
+                    const embed = new EmbedBuilder()
+                        .setTitle("✅ Raid encerrada")
+                        .setColor("DarkGreen")
+                        .setDescription("A operação policial acabou. O submundo volta a respirar (por enquanto).");
+                    await trySendToChannel(client, channelId, { embeds: [embed] });
                 }
+
+                const shortageUntil = Number(activeEvents.shortage?.until || 0);
+                if (shortageUntil > 0 && shortageUntil <= now && log.lastShortageEndAt !== shortageUntil) {
+                    log.lastShortageEndAt = shortageUntil;
+                    const endedItemId = activeEvents.shortage?.itemId || null;
+                    activeEvents.shortage = { until: 0, itemId: null };
+                    dirty = true;
+                    const itemName = endedItemId && ITEMS[endedItemId] ? ITEMS[endedItemId].name : "o item";
+                    const embed = new EmbedBuilder()
+                        .setTitle("✅ Escassez encerrada")
+                        .setColor("DarkGreen")
+                        .setDescription(`O mercado voltou ao normal: **${itemName}** circula novamente.`);
+                    await trySendToChannel(client, channelId, { embeds: [embed] });
+                }
+
+                const surplusUntil = Number(activeEvents.surplus?.until || 0);
+                if (surplusUntil > 0 && surplusUntil <= now && log.lastSurplusEndAt !== surplusUntil) {
+                    log.lastSurplusEndAt = surplusUntil;
+                    const endedItemId = activeEvents.surplus?.itemId || null;
+                    activeEvents.surplus = { until: 0, itemId: null };
+                    dirty = true;
+                    const itemName = endedItemId && ITEMS[endedItemId] ? ITEMS[endedItemId].name : "o item";
+                    const embed = new EmbedBuilder()
+                        .setTitle("✅ Superávit encerrado")
+                        .setColor("DarkGreen")
+                        .setDescription(`O carregamento extra acabou: **${itemName}** voltou ao preço normal.`);
+                    await trySendToChannel(client, channelId, { embeds: [embed] });
+                }
+
+                const discountUntil = Number(cfg.discountUntil || 0);
+                if (discountUntil > 0 && discountUntil <= now && log.lastDiscountEndAt !== discountUntil) {
+                    log.lastDiscountEndAt = discountUntil;
+                    cfg.discountUntil = 0;
+                    cfg.discountMultiplier = 1.0;
+                    dirty = true;
+                    const embed = new EmbedBuilder()
+                        .setTitle("✅ Leilão encerrado")
+                        .setColor("DarkGreen")
+                        .setDescription("O desconto acabou. Volte ao normal ou espere o próximo evento relâmpago.");
+                    await trySendToChannel(client, channelId, { embeds: [embed] });
+                }
+
+                const checkpointOpUntil = Number(activeEvents.checkpointOpUntil || 0);
+                if (checkpointOpUntil > 0 && checkpointOpUntil <= now && log.lastCheckpointOpEndAt !== checkpointOpUntil) {
+                    log.lastCheckpointOpEndAt = checkpointOpUntil;
+                    activeEvents.checkpointOpUntil = 0;
+                    dirty = true;
+                    const embed = new EmbedBuilder()
+                        .setTitle("✅ Operação de Checkpoints encerrada")
+                        .setColor("DarkGreen")
+                        .setDescription("Os bloqueios foram removidos. A cidade dá uma trégua.");
+                    await trySendToChannel(client, channelId, { embeds: [embed] });
+                }
+
+                const isEventActive =
+                    (cfg.discountUntil || 0) > now ||
+                    (activeEvents.raidUntil || 0) > now ||
+                    (activeEvents.shortage?.until || 0) > now ||
+                    (activeEvents.surplus?.until || 0) > now ||
+                    (activeEvents.checkpointOpUntil || 0) > now;
+
+                if (!isEventActive && now >= Number(cfg.eventCooldownUntil || 0)) {
+                    const roll = Math.random();
+                    let acc = 0;
+
+                    // Raid
+                    acc += (probs.raid || 0.05);
+                    if (roll < acc) {
+                        const duration = 20 * 60 * 1000;
+                        cfg.eventCooldownUntil = now + Math.max(0, Math.floor(cfg.eventCooldownMs || 0));
+                        activeEvents.raidUntil = now + duration;
+                        g.patrol.intensity = Math.min(1.0, (g.patrol.intensity || 0.35) + 0.4);
+                        dirty = true;
+
+                        const embed = new EmbedBuilder()
+                            .setTitle("🚨 RAID POLICIAL EM ANDAMENTO")
+                            .setColor("DarkRed")
+                            .setDescription(`A polícia iniciou uma operação massiva!\n\n👮 **Patrulha:** Aumentada drasticamente.\n📈 **Preços:** +25% (Risco).\n⚠️ **Interceptação:** Muito alta.\n\nDuração: 20 minutos.`);
+                        await trySendToChannel(client, channelId, { content, embeds: [embed] });
+                        g.config.activeEvents = activeEvents;
+                        if (dirty) await g.save().catch(() => { });
+                        continue;
+                    }
+
+                    // Shortage
+                    acc += (probs.shortage || 0.05);
+                    if (roll < acc) {
+                        const keys = Object.keys(ITEMS);
+                        const itemKey = keys[Math.floor(Math.random() * keys.length)];
+                        const item = ITEMS[itemKey];
+                        const duration = 30 * 60 * 1000;
+                        cfg.eventCooldownUntil = now + Math.max(0, Math.floor(cfg.eventCooldownMs || 0));
+
+                        activeEvents.shortage = { until: now + duration, itemId: itemKey };
+                        dirty = true;
+
+                        const embed = new EmbedBuilder()
+                            .setTitle("📉 ESCASSEZ DE MERCADO")
+                            .setColor("Orange")
+                            .setDescription(`Há uma falta de **${item.name}** no mercado.\n\n💰 **Preço:** x2.0 (Dobro).\n\nDuração: 30 minutos.`);
+                        await trySendToChannel(client, channelId, { content, embeds: [embed] });
+                        g.config.activeEvents = activeEvents;
+                        if (dirty) await g.save().catch(() => { });
+                        continue;
+                    }
+
+                    // Surplus
+                    acc += (probs.surplus || 0.05);
+                    if (roll < acc) {
+                        const keys = Object.keys(ITEMS);
+                        const itemKey = keys[Math.floor(Math.random() * keys.length)];
+                        const item = ITEMS[itemKey];
+                        const duration = 30 * 60 * 1000;
+                        cfg.eventCooldownUntil = now + Math.max(0, Math.floor(cfg.eventCooldownMs || 0));
+
+                        activeEvents.surplus = { until: now + duration, itemId: itemKey };
+                        dirty = true;
+
+                        const embed = new EmbedBuilder()
+                            .setTitle("📦 SUPERÁVIT DE ESTOQUE")
+                            .setColor("Green")
+                            .setDescription(`Chegou um carregamento extra de **${item.name}**.\n\n📉 **Preço:** -40% (Desconto).\n\nDuração: 30 minutos.`);
+                        await trySendToChannel(client, channelId, { content, embeds: [embed] });
+                        g.config.activeEvents = activeEvents;
+                        if (dirty) await g.save().catch(() => { });
+                        continue;
+                    }
+
+                    // Checkpoint Operation
+                    acc += (probs.checkpointOp || 0.03);
+                    if (roll < acc) {
+                        const duration = 25 * 60 * 1000;
+                        cfg.eventCooldownUntil = now + Math.max(0, Math.floor(cfg.eventCooldownMs || 0));
+                        activeEvents.checkpointOpUntil = now + duration;
+                        dirty = true;
+
+                        const districts = Object.values(DISTRICTS || {}).filter((d) => d && d.id);
+                        const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+                        const d1 = districts.length ? pick(districts) : { id: "central", name: "Central" };
+                        const d2 = districts.length ? pick(districts) : { id: "central", name: "Central" };
+
+                        if (!Array.isArray(g.checkpoints)) g.checkpoints = [];
+                        g.checkpoints.push({ districtId: d1.id, activeUntil: now + duration });
+                        g.checkpoints.push({ districtId: d2.id, activeUntil: now + duration });
+                        g.checkpoints = g.checkpoints.slice(-20);
+
+                        const embed = new EmbedBuilder()
+                            .setTitle("🚧 Operação de Checkpoints")
+                            .setColor("Blue")
+                            .setDescription(
+                                [
+                                    "A polícia montou bloqueios em pontos estratégicos.",
+                                    "",
+                                    `📍 Checkpoints: **${d1.name}** e **${d2.name}**`,
+                                    "⚠️ Interceptação: aumentada nesses distritos.",
+                                    "",
+                                    "Duração: 25 minutos.",
+                                ].join("\n")
+                            );
+                        await trySendToChannel(client, channelId, { content, embeds: [embed] });
+                        g.config.activeEvents = activeEvents;
+                        if (dirty) await g.save().catch(() => { });
+                        continue;
+                    }
+
+                    // Discount
+                    acc += (probs.discount || 0.05);
+                    if (roll < acc) {
+                        const minutes = 15;
+                        cfg.eventCooldownUntil = now + Math.max(0, Math.floor(cfg.eventCooldownMs || 0));
+                        cfg.discountUntil = now + minutes * 60 * 1000;
+                        cfg.discountMultiplier = [0.75, 0.8, 0.85][Math.floor(Math.random() * 3)];
+                        g.config = cfg;
+                        dirty = true;
+
+                        const embed = new EmbedBuilder()
+                            .setTitle("🕶️ Evento Relâmpago: Leilão Clandestino")
+                            .setColor("Gold")
+                            .setDescription(
+                                [
+                                    `Por **${minutes} minutos**, os preços do Mercado Negro estão com desconto.`,
+                                    `Multiplicador: **x${Number(cfg.discountMultiplier || 1).toFixed(2)}**`,
+                                    "",
+                                    "Use: `/mercadonegro` e escolha **Vendedores** / **Comprar item**.",
+                                ].join("\n")
+                            );
+                        await trySendToChannel(client, channelId, { content, embeds: [embed] });
+                        if (dirty) await g.save().catch(() => { });
+                        continue;
+                    }
+                }
+
+                if (dirty) await g.save().catch(() => { });
             }
-
-            if (dirty) await g.save().catch(() => {});
+        } catch (err) {
+            logger.error("BlackMarketTicker", err);
         }
-    } catch (err) {
-        console.error(err);
     }
-}
 
 
-client.on(Discord.Events?.ClientReady || "ready", () => {
-    setInterval(() => {
-        tick();
-    }, 60 * 1000);
-});
+    client.on(Events.ClientReady, () => {
+        setInterval(() => {
+            tick();
+        }, 60 * 1000);
+    });
+};
