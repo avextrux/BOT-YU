@@ -1,9 +1,9 @@
-const Discord = require("discord.js");
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 
 module.exports = {
     name: "divorciar",
     description: "Termine seu casamento (custará metade dos seus bens, brincadeira)",
-    type: 'CHAT_INPUT',
+    type: 1, // CHAT_INPUT
     run: async (client, interaction) => {
         try {
             const userdb = await client.userdb.getOrCreate(interaction.user.id);
@@ -11,7 +11,7 @@ module.exports = {
             // Verifica se é casado
             if (!userdb.economia.marry || !userdb.economia.marry.casado || !userdb.economia.marry.com) {
                 return interaction.reply({ 
-                    embeds: [new Discord.MessageEmbed().setColor("RED").setDescription("❌ Você não pode se divorciar se não for casado(a).")], 
+                    embeds: [new EmbedBuilder().setColor("Red").setDescription("❌ Você não pode se divorciar se não for casado(a).")], 
                     ephemeral: true 
                 });
             }
@@ -20,19 +20,20 @@ module.exports = {
             const conjuge = await client.users.fetch(conjugeId).catch(() => null);
             const nomeConjuge = conjuge ? conjuge.username : "Desconhecido";
 
-            const row = new Discord.MessageActionRow()
+            const row = new ActionRowBuilder()
                 .addComponents(
-                    new Discord.MessageButton().setCustomId('confirm_divorce').setLabel('Sim, quero o divórcio').setStyle('DANGER').setEmoji('💔'),
-                    new Discord.MessageButton().setCustomId('cancel_divorce').setLabel('Não, mudei de ideia').setStyle('SECONDARY').setEmoji('🔙')
+                    new ButtonBuilder().setCustomId('confirm_divorce').setLabel('Sim, quero o divórcio').setStyle(ButtonStyle.Danger).setEmoji('💔'),
+                    new ButtonBuilder().setCustomId('cancel_divorce').setLabel('Não, mudei de ideia').setStyle(ButtonStyle.Secondary).setEmoji('🔙')
                 );
 
-            const embed = new Discord.MessageEmbed()
+            const embed = new EmbedBuilder()
                 .setTitle("💔 Divórcio")
-                .setColor("DARK_RED")
+                .setColor("DarkRed")
                 .setDescription(`Você tem certeza que deseja se divorciar de **${nomeConjuge}**?\nEssa ação é irreversível (até você pedir de novo).`)
                 .setThumbnail("https://i.imgur.com/4J5h6X8.png");
 
-            const msg = await interaction.reply({ embeds: [embed], components: [row], fetchReply: true });
+            await interaction.reply({ embeds: [embed], components: [row] });
+            const msg = await interaction.fetchReply();
 
             const collector = msg.createMessageComponentCollector({ 
                 filter: i => i.user.id === interaction.user.id, 
@@ -53,21 +54,21 @@ module.exports = {
                         await conjugeDb.save();
                     }
 
-                    const successEmbed = new Discord.MessageEmbed()
+                    const successEmbed = new EmbedBuilder()
                         .setTitle("💔 Divórcio Concluído")
-                        .setColor("GREY")
+                        .setColor("Grey")
                         .setDescription(`Você se divorciou de **${nomeConjuge}**. Agora você está solteiro(a) na pista.`)
                         .setImage("https://media.giphy.com/media/26ufcVAp3AiJJsrmw/giphy.gif"); // GIF triste/liberdade
 
                     await i.update({ embeds: [successEmbed], components: [] });
                 } else {
-                    await i.update({ embeds: [new Discord.MessageEmbed().setColor("GREEN").setDescription("❤️ O amor venceu! Divórcio cancelado.")], components: [] });
+                    await i.update({ embeds: [new EmbedBuilder().setColor("Green").setDescription("❤️ O amor venceu! Divórcio cancelado.")], components: [] });
                 }
             });
 
             collector.on('end', collected => {
                 if (collected.size === 0) {
-                    interaction.editReply({ embeds: [new Discord.MessageEmbed().setColor("RED").setDescription("⏰ Tempo esgotado.")], components: [] }).catch(() => {});
+                    interaction.editReply({ embeds: [new EmbedBuilder().setColor("Red").setDescription("⏰ Tempo esgotado.")], components: [] }).catch(() => {});
                 }
             });
 

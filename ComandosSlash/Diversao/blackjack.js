@@ -1,4 +1,9 @@
-const Discord = require("../../Utils/djs");
+const { 
+    EmbedBuilder, 
+    ButtonBuilder, 
+    ActionRowBuilder, 
+    ButtonStyle 
+} = require("discord.js");
 const { getRandomGifUrl } = require("../../Utils/giphy");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
 const logger = require("../../Utils/logger");
@@ -65,22 +70,22 @@ function gameKey(guildId, userId) {
 }
 
 function actionRow(state) {
-    const hit = new Discord.MessageButton().setCustomId("bj_hit").setLabel("Pedir").setStyle("PRIMARY");
-    const stand = new Discord.MessageButton().setCustomId("bj_stand").setLabel("Parar").setStyle("SUCCESS");
-    const dbl = new Discord.MessageButton().setCustomId("bj_double").setLabel("Dobrar").setStyle("SECONDARY");
-    const surr = new Discord.MessageButton().setCustomId("bj_surrender").setLabel("Desistir").setStyle("DANGER");
+    const hit = new ButtonBuilder().setCustomId("bj_hit").setLabel("Pedir").setStyle(ButtonStyle.Primary);
+    const stand = new ButtonBuilder().setCustomId("bj_stand").setLabel("Parar").setStyle(ButtonStyle.Success);
+    const dbl = new ButtonBuilder().setCustomId("bj_double").setLabel("Dobrar").setStyle(ButtonStyle.Secondary);
+    const surr = new ButtonBuilder().setCustomId("bj_surrender").setLabel("Desistir").setStyle(ButtonStyle.Danger);
 
     if (!state.canDouble) dbl.setDisabled(true);
     if (!state.canSurrender) surr.setDisabled(true);
 
-    return new Discord.MessageActionRow().addComponents(hit, stand, dbl, surr);
+    return new ActionRowBuilder().addComponents(hit, stand, dbl, surr);
 }
 
 function insuranceRow(state) {
     if (!state.canInsurance) return null;
-    const yes = new Discord.MessageButton().setCustomId("bj_ins_yes").setLabel("Seguro").setStyle("PRIMARY");
-    const no = new Discord.MessageButton().setCustomId("bj_ins_no").setLabel("Sem seguro").setStyle("SECONDARY");
-    return new Discord.MessageActionRow().addComponents(yes, no);
+    const yes = new ButtonBuilder().setCustomId("bj_ins_yes").setLabel("Seguro").setStyle(ButtonStyle.Primary);
+    const no = new ButtonBuilder().setCustomId("bj_ins_no").setLabel("Sem seguro").setStyle(ButtonStyle.Secondary);
+    return new ActionRowBuilder().addComponents(yes, no);
 }
 
 function gameEmbed(state, { title = "🃏 Blackjack", revealDealer = false, footer, imageUrl } = {}) {
@@ -88,9 +93,9 @@ function gameEmbed(state, { title = "🃏 Blackjack", revealDealer = false, foot
     const dealerVal = handValue(state.dealer);
     const dealerHand = revealDealer ? `${handText(state.dealer)} (**${dealerVal}**)` : `${state.dealer[0].rank}${state.dealer[0].suit} ??`;
 
-    const embed = new Discord.MessageEmbed()
+    const embed = new EmbedBuilder()
         .setTitle(title)
-        .setColor("BLURPLE")
+        .setColor("Blurple")
         .addFields(
             { name: "Sua mão", value: `${handText(state.player)} (**${playerVal}**)`, inline: false },
             { name: "Dealer", value: dealerHand, inline: false },
@@ -106,12 +111,12 @@ function gameEmbed(state, { title = "🃏 Blackjack", revealDealer = false, foot
 module.exports = {
     name: "blackjack",
     description: "Jogue Blackjack contra o bot (com aposta)",
-    type: 'CHAT_INPUT',
+    type: 1, // CHAT_INPUT
     options: [
         {
             name: "aposta",
             description: "Valor da aposta",
-            type: "NUMBER",
+            type: 10, // NUMBER
             required: true
         }
     ],
@@ -131,8 +136,7 @@ module.exports = {
             }
 
             await interaction.deferReply().catch(() => null);
-            if (!interaction.deferred && !interaction.replied) return;
-
+            
             const userdb = await client.userdb.getOrCreate(interaction.user.id);
             if ((userdb.economia.money || 0) < aposta) {
                 await interaction.editReply({ content: "❌ Dinheiro insuficiente." }).catch(() => {});
@@ -200,7 +204,7 @@ module.exports = {
                     }
                 }
 
-                let color = "GREY";
+                let color = "Grey";
                 let resultText = "";
                 let payout = 0;
                 let insurancePayout = 0;
@@ -215,42 +219,42 @@ module.exports = {
 
                 if (outcome === "surrender") {
                     payout = Math.floor(baseBet / 2);
-                    color = "YELLOW";
+                    color = "Yellow";
                     resultText = `🏳️ Você desistiu e recuperou **${formatMoney(payout)}**.`;
                 } else if (playerVal > 21) {
                     payout = 0;
-                    color = "RED";
+                    color = "Red";
                     resultText = `💥 Você estourou (**${playerVal}**) e perdeu **${formatMoney(baseBet)}**.`;
                 } else if (dealerBlackjack) {
                     if (bj) {
                         payout = baseBet;
-                        color = "YELLOW";
+                        color = "Yellow";
                         resultText = `🤝 Ambos deram blackjack. Você recuperou **${formatMoney(baseBet)}**.`;
                     } else {
                         payout = 0;
-                        color = "RED";
+                        color = "Red";
                         resultText = `🃏 Dealer deu blackjack. Você perdeu **${formatMoney(baseBet)}**.`;
                     }
                 } else if (bj) {
                     const win = Math.floor(baseBet * 2.5);
                     payout = win;
-                    color = "GREEN";
+                    color = "Green";
                     resultText = `🎉 **BLACKJACK!** Você ganhou **${formatMoney(win)}**.`;
                 } else if (dealerVal > 21) {
                     payout = baseBet * 2;
-                    color = "GREEN";
+                    color = "Green";
                     resultText = `🔥 Dealer estourou (**${dealerVal}**). Você ganhou **${formatMoney(payout)}**.`;
                 } else if (playerVal > dealerVal) {
                     payout = baseBet * 2;
-                    color = "GREEN";
+                    color = "Green";
                     resultText = `✅ Você venceu (**${playerVal}** vs **${dealerVal}**) e ganhou **${formatMoney(payout)}**.`;
                 } else if (playerVal === dealerVal) {
                     payout = baseBet;
-                    color = "YELLOW";
+                    color = "Yellow";
                     resultText = `🤝 Empate (**${playerVal}**). Você recuperou **${formatMoney(baseBet)}**.`;
                 } else {
                     payout = 0;
-                    color = "RED";
+                    color = "Red";
                     resultText = `❌ Você perdeu (**${playerVal}** vs **${dealerVal}**).`;
                 }
 
@@ -259,17 +263,17 @@ module.exports = {
                 await userdb.save();
 
                 const outcomeGifQuery =
-                    color === "GREEN"
+                    color === "Green"
                         ? "casino win"
-                        : color === "RED"
+                        : color === "Red"
                         ? "casino lose"
                         : "casino blackjack";
 
                 const outcomeGif =
                     (await getRandomGifUrl(outcomeGifQuery, { rating: "pg-13" }).catch(() => null)) ||
-                    (color === "GREEN"
+                    (color === "Green"
                         ? "https://media.giphy.com/media/3o6gDWzmAzrpi5DQU8/giphy.gif"
-                        : color === "RED"
+                        : color === "Red"
                         ? "https://media.giphy.com/media/3o7aD2saalBwwftBIY/giphy.gif"
                         : "https://media.giphy.com/media/26BRqBzbnJNg2KZkI/giphy.gif");
 
@@ -357,7 +361,7 @@ module.exports = {
 
                     const v = handValue(state.player);
                     const updated = gameEmbed(state, { footer: `Saldo: ${formatMoney(userdb.economia.money)}` });
-                    if (v > 21) updated.setColor("RED");
+                    if (v > 21) updated.setColor("Red");
                     await interaction.editReply({ embeds: [updated], components: [actionRow(state)] });
                     if (v > 21) await finish("bust");
                     return;

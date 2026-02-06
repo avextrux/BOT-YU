@@ -1,16 +1,16 @@
-const Discord = require("discord.js")
+const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require("discord.js");
 
 module.exports = {
     name: "empregos",
     description: "Escolha um novo emprego",
-    type: "CHAT_INPUT",
+    type: 1, // CHAT_INPUT
     run: async (client, interaction) => {
 
         let userdb = await client.userdb.getOrCreate(interaction.user.id);
 
-        const embed = new Discord.MessageEmbed()
+        const embed = new EmbedBuilder()
             .setTitle('💼 Agência de Empregos')
-            .setColor("BLUE")
+            .setColor("Blue")
             .setDescription('Selecione uma vaga abaixo para ver detalhes.\n\n⚠️ **Atenção:** Cada emprego tem um tempo de descanso (cooldown) e uma faixa salarial diferente.')
             .setThumbnail("https://i.imgur.com/8N6G6wP.png");
 
@@ -24,9 +24,9 @@ module.exports = {
             { label: 'TI', emoji: '💻', value: 'ti', desc: 'Resolva bugs e ganhe muito bem.' }
         ];
 
-        const row = new Discord.MessageActionRow()
+        const row = new ActionRowBuilder()
             .addComponents(
-                new Discord.MessageSelectMenu()
+                new StringSelectMenuBuilder()
                     .setCustomId('menu_jobs')
                     .setPlaceholder('Selecione uma vaga disponível...')
                     .addOptions(options.map(o => ({
@@ -37,7 +37,8 @@ module.exports = {
                     })))
             );
 
-        const msg = await interaction.reply({ embeds: [embed], components: [row], fetchReply: true });
+        await interaction.reply({ embeds: [embed], components: [row] });
+        const msg = await interaction.fetchReply();
 
         const collector = msg.createMessageComponentCollector({ 
             filter: i => i.user.id === interaction.user.id, 
@@ -45,32 +46,32 @@ module.exports = {
         });
 
         collector.on('collect', async i => {
-            if (i.componentType === 'SELECT_MENU') {
+            if (i.isStringSelectMenu()) {
                 const select = i.values[0];
                 const jobInfo = getJobInfo(select);
 
-                const detailEmbed = new Discord.MessageEmbed()
+                const detailEmbed = new EmbedBuilder()
                     .setTitle(`${jobInfo.emoji} Vaga de ${jobInfo.name}`)
-                    .setColor("BLUE")
+                    .setColor("Blue")
                     .addFields(
                         { name: "🕒 Carga Horária (Cooldown)", value: jobInfo.cooldownText, inline: true },
                         { name: "💰 Salário Máximo", value: `R$ ${jobInfo.maxmoney}`, inline: true }
                     )
                     .setFooter({ text: "Clique no botão abaixo para assinar o contrato." });
 
-                const btnRow = new Discord.MessageActionRow()
+                const btnRow = new ActionRowBuilder()
                     .addComponents(
-                        new Discord.MessageButton()
+                        new ButtonBuilder()
                             .setCustomId(`accept_${select}`)
                             .setLabel('Aceitar Emprego')
-                            .setStyle('SUCCESS')
+                            .setStyle(ButtonStyle.Success)
                             .setEmoji('✍️')
                     );
 
                 await i.update({ embeds: [detailEmbed], components: [row, btnRow] });
             }
 
-            if (i.componentType === 'BUTTON') {
+            if (i.isButton()) {
                 const jobValue = i.customId.split("_")[1];
                 
                 // Verifica cooldown de troca de emprego (1 semana)
@@ -100,7 +101,7 @@ module.exports = {
                 await userdb.save();
 
                 await i.update({ 
-                    embeds: [new Discord.MessageEmbed().setColor("GREEN").setTitle("🤝 Contratado!").setDescription(`Parabéns! Agora você é um **${jobInfo.name}**.\nUse \`/work\` para começar a trabalhar.`)], 
+                    embeds: [new EmbedBuilder().setColor("Green").setTitle("🤝 Contratado!").setDescription(`Parabéns! Agora você é um **${jobInfo.name}**.\nUse \`/work\` para começar a trabalhar.`)], 
                     components: [] 
                 });
                 

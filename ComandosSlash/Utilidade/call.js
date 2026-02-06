@@ -1,14 +1,14 @@
-const Discord = require("discord.js");
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits } = require("discord.js");
 
 module.exports = {
     name: "call",
     description: "Inicie uma chamada privada temporária com alguém",
-    type: 'CHAT_INPUT',
+    type: 1, // CHAT_INPUT
     options: [
         {
             name: "usuario",
             description: "Usuário para ligar",
-            type: "USER",
+            type: 6, // USER
             required: true
         }
     ],
@@ -24,21 +24,22 @@ module.exports = {
                 return interaction.reply({ content: "❌ Você não pode ligar para um bot.", ephemeral: true });
             }
 
-            const row = new Discord.MessageActionRow()
+            const row = new ActionRowBuilder()
                 .addComponents(
-                    new Discord.MessageButton().setCustomId('accept_call').setLabel('Atender').setStyle('SUCCESS').setEmoji('📞'),
-                    new Discord.MessageButton().setCustomId('decline_call').setLabel('Recusar').setStyle('DANGER').setEmoji('📵')
+                    new ButtonBuilder().setCustomId('accept_call').setLabel('Atender').setStyle(ButtonStyle.Success).setEmoji('📞'),
+                    new ButtonBuilder().setCustomId('decline_call').setLabel('Recusar').setStyle(ButtonStyle.Danger).setEmoji('📵')
                 );
 
-            const embed = new Discord.MessageEmbed()
+            const embed = new EmbedBuilder()
                 .setTitle("📞 Recebendo Chamada...")
                 .setDescription(`**${interaction.user.tag}** está te ligando!\n\nSe aceitar, um chat privado temporário será criado por **5 minutos**.`)
-                .setColor("BLUE")
+                .setColor("Blue")
                 .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
                 .setFooter({ text: "A chamada expira em 60 segundos." });
 
             // Envia a mensagem mencionando o alvo
-            const msg = await interaction.reply({ content: `${target}`, embeds: [embed], components: [row], fetchReply: true });
+            await interaction.reply({ content: `${target}`, embeds: [embed], components: [row] });
+            const msg = await interaction.fetchReply();
 
             // Cria o coletor apenas para o usuário alvo
             const collector = msg.createMessageComponentCollector({
@@ -56,24 +57,25 @@ module.exports = {
                     const channelName = `call-${interaction.user.username}-${target.username}`.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 25);
 
                     try {
-                        const tempChannel = await guild.channels.create(channelName, {
-                            type: 'GUILD_TEXT',
+                        const tempChannel = await guild.channels.create({
+                            name: channelName,
+                            type: ChannelType.GuildText,
                             permissionOverwrites: [
                                 {
                                     id: guild.id, // @everyone
-                                    deny: ['VIEW_CHANNEL']
+                                    deny: [PermissionFlagsBits.ViewChannel]
                                 },
                                 {
                                     id: interaction.user.id, // Quem ligou
-                                    allow: ['VIEW_CHANNEL', 'SEND_MESSAGES', 'ATTACH_FILES']
+                                    allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles]
                                 },
                                 {
                                     id: target.id, // Quem atendeu
-                                    allow: ['VIEW_CHANNEL', 'SEND_MESSAGES', 'ATTACH_FILES']
+                                    allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles]
                                 },
                                 {
                                     id: client.user.id, // Bot
-                                    allow: ['VIEW_CHANNEL', 'SEND_MESSAGES', 'MANAGE_CHANNELS']
+                                    allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels]
                                 }
                             ],
                             reason: 'Call privada temporária'
@@ -87,24 +89,24 @@ module.exports = {
                         });
 
                         // Manda mensagem no canal novo
-                        const welcomeEmbed = new Discord.MessageEmbed()
+                        const welcomeEmbed = new EmbedBuilder()
                             .setTitle("📞 Call Privada Iniciada")
                             .setDescription(`Este chat é privado entre **${interaction.user}** e **${target}**.\n\n⏳ **Tempo restante:** 5 minutos.`)
-                            .setColor("GREEN");
+                            .setColor("Green");
 
                         await tempChannel.send({ content: `${interaction.user} ${target}`, embeds: [welcomeEmbed] });
 
                         // Temporizador para deletar o canal
                         setTimeout(async () => {
                             if (tempChannel && !tempChannel.deleted) {
-                                await tempChannel.delete('Tempo da call expirado');
+                                await tempChannel.delete('Tempo da call expirado').catch(() => {});
                             }
                         }, 5 * 60 * 1000); // 5 minutos
 
                         // Aviso de 1 minuto restante
                         setTimeout(async () => {
                             if (tempChannel && !tempChannel.deleted) {
-                                await tempChannel.send("⚠️ **Atenção:** Este chat será apagado em 1 minuto!");
+                                await tempChannel.send("⚠️ **Atenção:** Este chat será apagado em 1 minuto!").catch(() => {});
                             }
                         }, 4 * 60 * 1000);
 
