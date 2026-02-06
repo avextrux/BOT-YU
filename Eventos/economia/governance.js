@@ -1,5 +1,5 @@
-const client = require("../../index");
-const Discord = require("../../Utils/djs");
+const { Events, EmbedBuilder } = require("discord.js");
+const logger = require("../../Utils/logger");
 
 function getVoteCount(votes, userId) {
     if (!votes) return 0;
@@ -7,7 +7,7 @@ function getVoteCount(votes, userId) {
     return votes[userId] || 0;
 }
 
-async function trySendToChannel(channelId, payload) {
+async function trySendToChannel(client, channelId, payload) {
     if (!channelId) return false;
     try {
         const channel =
@@ -22,62 +22,75 @@ async function trySendToChannel(channelId, payload) {
     }
 }
 
-async function finalizeElections() {
+async function finalizeElections(client) {
     try {
         if (!client.guildEconomydb) return;
         const now = Date.now();
-        const actives = await client.guildEconomydb.find({ "election.active": true, "election.endsAt": { $gt: 0, $lte: now } }).limit(50);
+        // Aumentado limit e processamento em chunk se necessário
+        const actives = await client.guildEconomydb.find({ "election.active": true, "election.endsAt": { $gt: 0, $lte: now } }).limit(100);
 
-        for (const eco of actives) {
-            const candidates = eco.election.candidates || [];
-            let winner = null;
-            let best = -1;
-            const results = candidates
-                .map((id, idx) => {
-                    const paid = getVoteCount(eco.election.paidVotes, id);
-                    const free = getVoteCount(eco.election.votes, id);
-                    return { id, votes: free + paid, paid, idx };
-                })
-                .sort((a, b) => (b.votes - a.votes) || (a.idx - b.idx));
+        if (!actives || actives.length === 0) return;
 
-            for (const r of results) {
-                const v = r.votes;
-                if (v > best) {
-                    best = v;
-                    winner = r.id;
+        logger.info("Governance", `Finalizing ${actives.length} elections.`);
+
+        // Processa em paralelo
+        await Promise.all(actives.map(async (eco) => {
+            try {
+                const candidates = eco.election.candidates || [];
+                let winner = null;
+                let best = -1;
+                const results = candidates
+                    .map((id, idx) => {
+                        const paid = getVoteCount(eco.election.paidVotes, id);
+                        const free = getVoteCount(eco.election.votes, id);
+                        return { id, votes: free + paid, paid, idx };
+                    })
+                    .sort((a, b) => (b.votes - a.votes) || (a.idx - b.idx));
+
+                for (const r of results) {
+                    const v = r.votes;
+                    if (v > best) {
+                        best = v;
+                        winner = r.id;
+                    }
                 }
-            }
-            if (winner) {
-                eco.policy.presidentId = winner;
-            }
-            eco.election.active = false;
-            eco.election.endsAt = 0;
-            await eco.save().catch(() => {});
+                if (winner) {
+                    eco.policy.presidentId = winner;
+                }
+                eco.election.active = false;
+                eco.election.endsAt = 0;
+                await eco.save();
 
-            const channelId = eco.election.announceChannelId;
-            if (channelId) {
-                const top = results.slice(0, 10);
-                const placar = top.length
-                    ? top.map((r, i) => `**${i + 1}.** <@${r.id}> — **${r.votes}** voto(s) (${r.paid} comprados)`).join("\n")
-                    : "-";
+                const channelId = eco.election.announceChannelId;
+                if (channelId) {
+                    const top = results.slice(0, 10);
+                    const placar = top.length
+                        ? top.map((r, i) => `**${i + 1}.** <@${r.id}> — **${r.votes}** voto(s) (${r.paid} comprados)`).join("\n")
+                        : "-";
 
-                const embed = new Discord.MessageEmbed()
-                    .setTitle("🏁 Resultado da Eleição")
-                    .setColor("BLURPLE")
-                    .addField("Vencedor", winner ? `<@${winner}>` : "Sem candidatos", false)
-                    .addField("Placar (Top 10)", placar, false)
-                    .setFooter({ text: `Total de votantes: ${(eco.election?.voters || []).length}` });
+                    const embed = new EmbedBuilder()
+                        .setTitle("🏁 Resultado da Eleição")
+                        .setColor("Blurple")
+                        .addFields(
+                            { name: "Vencedor", value: winner ? `<@${winner}>` : "Sem candidatos", inline: false },
+                            { name: "Placar (Top 10)", value: placar, inline: false }
+                        )
+                        .setFooter({ text: `Total de votantes: ${(eco.election?.voters || []).length}` });
 
-                const content = eco.election.pingEveryone ? "@everyone" : undefined;
-                await trySendToChannel(channelId, { content, embeds: [embed] });
+                    const content = eco.election.pingEveryone ? "@everyone" : undefined;
+                    await trySendToChannel(client, channelId, { content, embeds: [embed] });
+                }
+            } catch (err) {
+                logger.error("Governance", `Error finalizing election for guild ${eco.guildID}: ${err.message}`);
             }
-        }
+        }));
+
     } catch (err) {
-        console.error(err);
+        logger.error("Governance", `Error in election loop: ${err.message}`);
     }
 }
 
-async function expireCrises() {
+async function expireCrises(client) {
     try {
         if (!client.guildEconomydb) return;
         const now = Date.now();
@@ -94,14 +107,16 @@ async function expireCrises() {
             }
         );
     } catch (err) {
-        console.error(err);
+        logger.error("Governance", `Error expiring crises: ${err.message}`);
     }
 }
 
-client.on(Discord.Events?.ClientReady || "ready", () => {
-    setInterval(() => {
-        finalizeElections();
-        expireCrises();
-    }, 2 * 60 * 1000);
-});
+module.exports = (client) => {
+    client.on(Events.ClientReady, () => {
+        setInterval(() => {
+            finalizeElections(client);
+            expireCrises(client);
+        }, 2 * 60 * 1000);
+    });
+};
 
