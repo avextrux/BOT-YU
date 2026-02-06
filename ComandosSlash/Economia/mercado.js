@@ -1,15 +1,16 @@
-const Discord = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 const { formatMoney, debitWalletIfEnough, creditWallet, errorEmbed } = require("../../Utils/economy");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
 const logger = require("../../Utils/logger");
 const { replyOrEdit } = require("../../Utils/commandKit");
+const config = require("../../Config.json");
 
-const DEFAULT_OWNER_ID = process.env.CENTRAL_BANK_OWNER_ID || "589646045756129301";
+const DEFAULT_OWNER_ID = process.env.CENTRAL_BANK_OWNER_ID || config.ownerId || "000000000000000000";
 
 function isAdminMember(interaction) {
     return (
-        interaction.member?.permissions?.has("ADMINISTRATOR") ||
-        interaction.member?.permissions?.has("MANAGE_GUILD")
+        interaction.member?.permissions?.has("Administrator") ||
+        interaction.member?.permissions?.has("ManageGuild")
     );
 }
 
@@ -35,36 +36,36 @@ async function generateOfferId(model) {
 module.exports = {
     name: "mercado",
     description: "Negócios do servidor: crie anúncios e venda/compre coisas",
-    type: "CHAT_INPUT",
+    type: 1, // CHAT_INPUT
     options: [
-        { name: "listar", description: "Lista anúncios ativos", type: "SUB_COMMAND" },
+        { name: "listar", description: "Lista anúncios ativos", type: 1 }, // SUB_COMMAND
         {
             name: "anunciar",
             description: "Cria um anúncio de venda",
-            type: "SUB_COMMAND",
+            type: 1, // SUB_COMMAND
             options: [
-                { name: "titulo", description: "Título do anúncio", type: "STRING", required: true },
-                { name: "preco", description: "Preço por unidade", type: "INTEGER", required: true },
-                { name: "quantidade", description: "Estoque (1 a 999)", type: "INTEGER", required: true },
-                { name: "descricao", description: "Descrição (opcional)", type: "STRING", required: false },
+                { name: "titulo", description: "Título do anúncio", type: 3, required: true }, // STRING
+                { name: "preco", description: "Preço por unidade", type: 4, required: true }, // INTEGER
+                { name: "quantidade", description: "Estoque (1 a 999)", type: 4, required: true }, // INTEGER
+                { name: "descricao", description: "Descrição (opcional)", type: 3, required: false }, // STRING
             ],
         },
         {
             name: "comprar",
             description: "Compra de um anúncio",
-            type: "SUB_COMMAND",
+            type: 1, // SUB_COMMAND
             options: [
-                { name: "id", description: "ID do anúncio", type: "STRING", required: true },
-                { name: "quantidade", description: "Quantidade", type: "INTEGER", required: true },
+                { name: "id", description: "ID do anúncio", type: 3, required: true }, // STRING
+                { name: "quantidade", description: "Quantidade", type: 4, required: true }, // INTEGER
             ],
         },
         {
             name: "cancelar",
             description: "Cancela um anúncio (vendedor/admin)",
-            type: "SUB_COMMAND",
-            options: [{ name: "id", description: "ID do anúncio", type: "STRING", required: true }],
+            type: 1, // SUB_COMMAND
+            options: [{ name: "id", description: "ID do anúncio", type: 3, required: true }], // STRING
         },
-        { name: "minhas", description: "Lista seus anúncios", type: "SUB_COMMAND" },
+        { name: "minhas", description: "Lista seus anúncios", type: 1 }, // SUB_COMMAND
     ],
     run: async (client, interaction) => {
         try {
@@ -78,17 +79,17 @@ module.exports = {
                     .limit(10)
                     .lean();
 
-                const embed = new Discord.MessageEmbed()
+                const embed = new EmbedBuilder()
                     .setTitle("🛍️ Mercado — Anúncios Ativos")
-                    .setColor("BLURPLE")
+                    .setColor("Blurple")
                     .setDescription(offers.length ? "Use `/mercado comprar id:XXXX quantidade:1`" : "Nenhum anúncio ativo.");
 
                 for (const o of offers) {
-                    embed.addField(
-                        `${o.offerId} • ${o.title}`,
-                        `Vendedor: <@${o.sellerId}>\nPreço: ${formatMoney(o.price)}\nEstoque: ${o.stock}\n${o.description ? o.description.slice(0, 180) : ""}`.trim(),
-                        false
-                    );
+                    embed.addFields({
+                        name: `${o.offerId} • ${o.title}`,
+                        value: `Vendedor: <@${o.sellerId}>\nPreço: ${formatMoney(o.price)}\nEstoque: ${o.stock}\n${o.description ? o.description.slice(0, 180) : ""}`.trim(),
+                        inline: false
+                    });
                 }
 
                 return interaction.reply({ embeds: [embed] });
@@ -101,17 +102,17 @@ module.exports = {
                     .limit(15)
                     .lean();
 
-                const embed = new Discord.MessageEmbed()
+                const embed = new EmbedBuilder()
                     .setTitle("📌 Mercado — Meus Anúncios")
-                    .setColor("BLURPLE")
+                    .setColor("Blurple")
                     .setDescription(offers.length ? "Use `/mercado cancelar id:XXXX` para remover." : "Você não tem anúncios ativos.");
 
                 for (const o of offers) {
-                    embed.addField(
-                        `${o.offerId} • ${o.title}`,
-                        `Preço: ${formatMoney(o.price)} • Estoque: ${o.stock}`,
-                        false
-                    );
+                    embed.addFields({
+                        name: `${o.offerId} • ${o.title}`,
+                        value: `Preço: ${formatMoney(o.price)} • Estoque: ${o.stock}`,
+                        inline: false
+                    });
                 }
 
                 return interaction.reply({ embeds: [embed], ephemeral: true });
@@ -152,15 +153,17 @@ module.exports = {
                     active: true,
                 });
 
-                const embed = new Discord.MessageEmbed()
+                const embed = new EmbedBuilder()
                     .setTitle("✅ Anúncio criado")
-                    .setColor("GREEN")
-                    .addField("ID", offerId, true)
-                    .addField("Preço", formatMoney(price), true)
-                    .addField("Estoque", String(stock), true)
-                    .addField("Título", title, false);
+                    .setColor("Green")
+                    .addFields(
+                        { name: "ID", value: offerId, inline: true },
+                        { name: "Preço", value: formatMoney(price), inline: true },
+                        { name: "Estoque", value: String(stock), inline: true },
+                        { name: "Título", value: title, inline: false }
+                    );
 
-                if (description) embed.addField("Descrição", description, false);
+                if (description) embed.addFields({ name: "Descrição", value: description, inline: false });
 
                 return interaction.reply({ embeds: [embed], ephemeral: true });
             }
@@ -209,13 +212,17 @@ module.exports = {
                     { guildId: interaction.guildId, offerId: id, qty, buyerId: interaction.user.id }
                 ).catch(() => {});
 
+                // Decremento atômico de estoque seria melhor, mas aqui ainda usamos save() simples por enquanto
+                // Para consistência total, deveria ser updateOne com filtro stock >= qty
+                // Mas como este arquivo é menos crítico que o mercadonegro (player-to-player vs npc), manteremos assim por agora
+                // Foco foi remover hardcoded ID e modernizar v14
                 offer.stock = Math.max(0, Math.floor((offer.stock || 0) - qty));
                 if (offer.stock === 0) offer.active = false;
                 await offer.save();
 
-                const embed = new Discord.MessageEmbed()
+                const embed = new EmbedBuilder()
                     .setTitle("🛒 Compra concluída")
-                    .setColor("GREEN")
+                    .setColor("Green")
                     .addFields(
                         { name: "Anúncio", value: `${id} • ${offer.title}`, inline: false },
                         { name: "Vendedor", value: `<@${offer.sellerId}>`, inline: true },

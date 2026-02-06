@@ -1,4 +1,4 @@
-const Discord = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 const { getRandomGifUrl } = require("../../Utils/giphy");
 const { formatMoney } = require("../../Utils/economy");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
@@ -8,12 +8,17 @@ const { replyOrEdit } = require("../../Utils/commandKit");
 module.exports = {
     name: "daily",
     description: "Resgate seu prêmio diário",
-    type: 'CHAT_INPUT',
+    type: 1, // CHAT_INPUT
     run: async (client, interaction) => {
         try {
+            await interaction.deferReply().catch(() => {});
+
             const gate = await ensureEconomyAllowed(client, interaction, interaction.user.id);
-            if (!gate.ok) return interaction.reply({ embeds: [gate.embed], ephemeral: true });
-            const userdb = gate.userdb;
+            if (!gate.ok) return replyOrEdit(interaction, { embeds: [gate.embed], ephemeral: true });
+            
+            // Recarrega usuário atualizado após ensureEconomyAllowed
+            const userdb = await client.userdb.getOrCreate(interaction.user.id);
+
             if (!userdb.economia.stats) userdb.economia.stats = {};
             if (!Array.isArray(userdb.economia.transactions)) userdb.economia.transactions = [];
             
@@ -27,10 +32,10 @@ module.exports = {
                 const minutes = Math.floor((time % 3600000) / 60000);
                 const seconds = Math.floor((time % 60000) / 1000);
 
-                return interaction.reply({
-                    embeds: [new Discord.MessageEmbed()
+                return replyOrEdit(interaction, {
+                    embeds: [new EmbedBuilder()
                         .setTitle("⏳ Calma lá!")
-                        .setColor("RED")
+                        .setColor("Red")
                         .setDescription(`Você já pegou seu daily hoje.\nVolte em **${hours}h ${minutes}m ${seconds}s**!`)
                     ],
                     ephemeral: true
@@ -65,17 +70,20 @@ module.exports = {
             await userdb.save();
 
             if (tax > 0 && gate.guildEco) {
-                gate.guildEco.policy.treasury = (gate.guildEco.policy.treasury || 0) + tax;
-                await gate.guildEco.save().catch(() => {});
+                // Atualização atômica para evitar race condition na tesouraria
+                await client.guildEconomydb.updateOne(
+                    { guildID: interaction.guildId },
+                    { $inc: { "policy.treasury": tax } }
+                ).catch(() => {});
             }
 
             const gif =
                 (await getRandomGifUrl("money reward", { rating: "pg-13" }).catch(() => null)) ||
                 "https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif";
 
-            const embed = new Discord.MessageEmbed()
+            const embed = new EmbedBuilder()
                 .setTitle("📅 Prêmio Diário")
-                .setColor("GREEN")
+                .setColor("Green")
                 .setDescription(`Você resgatou seu prêmio diário de hoje!`)
                 .addFields(
                     { name: "💰 Ganhou", value: `**${formatMoney(premio)}**`, inline: true },
@@ -87,7 +95,7 @@ module.exports = {
                 .setImage(gif)
                 .setFooter({ text: "Volte amanhã para mais!" });
 
-            interaction.reply({ embeds: [embed] });
+            replyOrEdit(interaction, { embeds: [embed] });
 
         } catch (err) {
             logger.error("Erro ao resgatar daily", { error: String(err?.message || err) });

@@ -1,95 +1,98 @@
 const { Schema, model } = require("mongoose");
 
-const MissionProgressSchema = new Schema(
-    {
-        missionId: { type: String, required: true },
-        kind: { type: String, default: "daily" },
-        progress: { type: Number, default: 0 },
-        goal: { type: Number, default: 0 },
-        claimed: { type: Boolean, default: false },
-        resetsAt: { type: Number, default: 0, index: true },
+const BlackMarketUserSchema = new Schema({
+    guildID: { type: String, required: true, index: true },
+    userID: { type: String, required: true, index: true },
+    
+    // Reputação e Heat
+    reputation: {
+        score: { type: Number, default: 0 },
+        level: { type: Number, default: 0 },
+        lastUpdateAt: { type: Number, default: 0 }
     },
-    { _id: false, minimize: false }
-);
-
-const BlackMarketUserSchema = new Schema(
-    {
-        guildID: { type: String, required: true, index: true },
-        userID: { type: String, required: true, index: true },
-        createdAt: { type: Number, default: 0 },
-
-        reputation: {
-            score: { type: Number, default: 0, index: true },
-            level: { type: Number, default: 0, index: true },
-            lastUpdateAt: { type: Number, default: 0 },
-        },
-
-        heat: {
-            level: { type: Number, default: 0, index: true },
-            lastUpdateAt: { type: Number, default: 0 },
-        },
-
-        inventory: { type: Map, of: Number, default: {} },
-
-        stats: {
-            criminalProfit: { type: Number, default: 0, index: true },
-            criminalRuns: { type: Number, default: 0, index: true },
-            seizedCount: { type: Number, default: 0, index: true },
-            seizedValue: { type: Number, default: 0, index: true },
-            repBoughtToday: { type: Number, default: 0 },
-            repBoughtResetAt: { type: Number, default: 0, index: true },
-        },
-
-        missions: { type: [MissionProgressSchema], default: [] },
-
-        faction: {
-            factionId: { type: String, default: null, index: true },
-            joinedAt: { type: Number, default: 0 },
-        },
-
-        cooldowns: {
-            blackmarket: { type: Number, default: 0 },
-            patrol: { type: Number, default: 0 },
-            checkpoint: { type: Number, default: 0 },
-            robbery: { type: Number, default: 0 },
-            trafficking: { type: Number, default: 0 },
-            laundering: { type: Number, default: 0 },
-        },
-
-        lastCrime: {
-            at: { type: Number, default: 0, index: true },
-            districtId: { type: String, default: null, index: true },
-            kind: { type: String, default: null },
-        },
-
-        operation: {
-            active: { type: Boolean, default: false, index: true },
-            kind: { type: String, default: null, index: true },
-            districtId: { type: String, default: null, index: true },
-            caseId: { type: String, default: null, index: true },
-            startedAt: { type: Number, default: 0, index: true },
-            endsAt: { type: Number, default: 0, index: true },
-            dirtyPayout: { type: Number, default: 0 },
-            cleanCost: { type: Number, default: 0 },
-        },
-
-        antiCheat: {
-            strikes: { type: Number, default: 0 },
-            lockedUntil: { type: Number, default: 0, index: true },
-            windowStartAt: { type: Number, default: 0 },
-            windowCount: { type: Number, default: 0 },
-        },
+    heat: {
+        level: { type: Number, default: 0 },
+        lastUpdateAt: { type: Number, default: 0 }
     },
-    { minimize: false }
-);
 
-BlackMarketUserSchema.index({ guildID: 1, userID: 1 }, { unique: true });
+    // Inventário de itens ilícitos
+    inventory: { type: Map, of: Number, default: {} },
 
+    // Estatísticas
+    stats: {
+        criminalProfit: { type: Number, default: 0 },
+        criminalRuns: { type: Number, default: 0 },
+        seizedCount: { type: Number, default: 0 },
+        seizedValue: { type: Number, default: 0 },
+        repBoughtToday: { type: Number, default: 0 },
+        repBoughtResetAt: { type: Number, default: 0 }
+    },
+
+    // Cooldowns específicos
+    cooldowns: {
+        blackmarket: { type: Number, default: 0 },
+        patrol: { type: Number, default: 0 },
+        checkpoint: { type: Number, default: 0 },
+        robbery: { type: Number, default: 0 },
+        trafficking: { type: Number, default: 0 },
+        laundering: { type: Number, default: 0 }
+    },
+
+    // Última atividade criminosa
+    lastCrime: {
+        at: { type: Number, default: 0 },
+        districtId: { type: String, default: null },
+        kind: { type: String, default: null }
+    },
+
+    // Operação ativa (assalto, tráfico)
+    operation: {
+        active: { type: Boolean, default: false },
+        kind: { type: String, default: null }, // robbery, trafficking
+        districtId: { type: String, default: null },
+        caseId: { type: String, default: null },
+        startedAt: { type: Number, default: 0 },
+        endsAt: { type: Number, default: 0 },
+        dirtyPayout: { type: Number, default: 0 },
+        cleanCost: { type: Number, default: 0 }
+    },
+
+    // Anti-cheat / Rate limit interno
+    antiCheat: {
+        strikes: { type: Number, default: 0 },
+        lockedUntil: { type: Number, default: 0 },
+        windowStartAt: { type: Number, default: 0 },
+        windowCount: { type: Number, default: 0 }
+    },
+
+    // Missões
+    missions: [
+        {
+            missionId: String,
+            progress: Number,
+            goal: Number,
+            claimed: Boolean,
+            resetsAt: Number
+        }
+    ]
+}, { minimize: false });
+
+// Índice para ranking de lucro criminoso
+BlackMarketUserSchema.index({ guildID: 1, "stats.criminalProfit": -1 });
+
+// Helper para garantir criação
 BlackMarketUserSchema.statics.getOrCreate = async function (guildID, userID) {
     let doc = await this.findOne({ guildID, userID });
     if (!doc) {
-        doc = new this({ guildID, userID, createdAt: Date.now() });
-        await doc.save();
+        try {
+            doc = await this.create({ guildID, userID });
+        } catch (e) {
+            if (e.code === 11000) {
+                doc = await this.findOne({ guildID, userID });
+            } else {
+                throw e;
+            }
+        }
     }
     return doc;
 };

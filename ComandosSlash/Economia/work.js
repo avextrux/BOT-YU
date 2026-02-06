@@ -1,4 +1,4 @@
-const Discord = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 const { getRandomGifUrl } = require("../../Utils/giphy");
 const { formatMoney } = require("../../Utils/economy");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
@@ -8,21 +8,26 @@ const { replyOrEdit } = require("../../Utils/commandKit");
 module.exports = {
     name: "work",
     description: "Trabalhe e ganhe dinheiro",
-    type: 'CHAT_INPUT',
+    type: 1, // CHAT_INPUT
     run: async (client, interaction) => {
         try {
+            await interaction.deferReply().catch(() => {});
+
             const gate = await ensureEconomyAllowed(client, interaction, interaction.user.id);
-            if (!gate.ok) return interaction.reply({ embeds: [gate.embed], ephemeral: true });
-            const userdb = gate.userdb;
+            if (!gate.ok) return replyOrEdit(interaction, { embeds: [gate.embed], ephemeral: true });
+            
+            // Recarrega usuário atualizado
+            const userdb = await client.userdb.getOrCreate(interaction.user.id);
+
             if (!userdb.economia.stats) userdb.economia.stats = {};
             if (!Array.isArray(userdb.economia.transactions)) userdb.economia.transactions = [];
 
             // Verifica se tem emprego
             if (!userdb.economia.trabalho || !userdb.economia.trabalho.trampo) {
-                return interaction.reply({
-                    embeds: [new Discord.MessageEmbed()
+                return replyOrEdit(interaction, {
+                    embeds: [new EmbedBuilder()
                         .setTitle(`💼 Você está desempregado!`)
-                        .setColor("RED")
+                        .setColor("Red")
                         .setDescription(`Você precisa de um emprego para trabalhar.\nUse \`/empregos\` para ver as vagas disponíveis.`)
                     ],
                     ephemeral: true
@@ -35,10 +40,10 @@ module.exports = {
                 const calc = userdb.cooldowns.work - now;
                 const { hours, minutes, seconds } = ms(calc);
                 
-                return interaction.reply({
-                    embeds: [new Discord.MessageEmbed()
+                return replyOrEdit(interaction, {
+                    embeds: [new EmbedBuilder()
                         .setTitle(`☕ Hora do Café`)
-                        .setColor("YELLOW")
+                        .setColor("Yellow")
                         .setDescription(`Você está cansado. Volte ao trabalho em **${hours}h ${minutes}m ${seconds}s**.`)
                     ],
                     ephemeral: true
@@ -82,8 +87,11 @@ module.exports = {
             await userdb.save();
 
             if (tax > 0 && gate.guildEco) {
-                gate.guildEco.policy.treasury = (gate.guildEco.policy.treasury || 0) + tax;
-                await gate.guildEco.save().catch(() => {});
+                // Atualização atômica
+                await client.guildEconomydb.updateOne(
+                    { guildID: interaction.guildId },
+                    { $inc: { "policy.treasury": tax } }
+                ).catch(() => {});
             }
 
             const gifQuery = crit ? "anime payday" : "anime working";
@@ -91,9 +99,9 @@ module.exports = {
                 (await getRandomGifUrl(gifQuery, { rating: "pg-13" }).catch(() => null)) ||
                 "https://media.giphy.com/media/l0MYC0LajbaPoEADu/giphy.gif";
 
-            const embed = new Discord.MessageEmbed()
+            const embed = new EmbedBuilder()
                 .setTitle(`🔨 Trabalho Concluído!`)
-                .setColor("GREEN")
+                .setColor("Green")
                 .setDescription(`Você trabalhou como **${jobInfo.name}**.\n\n📝 **Relatório:** ${frase}`)
                 .addFields(
                     { name: "💰 Pagamento", value: `**${formatMoney(ganho)}**`, inline: true },
@@ -104,7 +112,7 @@ module.exports = {
                 .setImage(gif)
                 .setFooter({ text: "Bom trabalho!", iconURL: interaction.user.displayAvatarURL() });
 
-            interaction.reply({ embeds: [embed] });
+            replyOrEdit(interaction, { embeds: [embed] });
 
         } catch (err) {
             logger.error("Erro ao trabalhar", { error: String(err?.message || err) });
@@ -112,6 +120,55 @@ module.exports = {
         }
     }
 };
+
+function getJobDetails(job) {
+    switch (job) {
+        case "lixeiro":
+            return { 
+                name: "Lixeiro", 
+                frases: ["Você recolheu 30 sacos de lixo.", "Você limpou a praça central.", "O cheiro estava ruim, mas o dinheiro é bom."] 
+            };
+        case "pizza":
+            return { 
+                name: "Entregador de Pizza", 
+                frases: ["Você entregou 10 pizzas quentinhas.", "Quase caiu da moto, mas a pizza chegou inteira.", "Recebeu uma gorjeta extra pela rapidez."] 
+            };
+        case "frentista":
+            return { 
+                name: "Frentista", 
+                frases: ["Abasteceu 50 carros hoje.", "Trocou o óleo de um caminhão.", "Lavou o parabrisa de um cliente VIP."] 
+            };
+        case "caminhoneiro":
+            return { 
+                name: "Caminhoneiro", 
+                frases: ["Levou uma carga até o outro estado.", "Dirigiu a noite toda sem dormir.", "Escutou muita música sertaneja na estrada."] 
+            };
+        case "sedex":
+            return { 
+                name: "Entregador Sedex", 
+                frases: ["Entregou todas as encomendas antes do prazo.", "Não jogou nenhuma caixa por cima do muro hoje.", "O cachorro correu atrás de você, mas você foi mais rápido."] 
+            };
+        case "pescador":
+            return { 
+                name: "Pescador", 
+                frases: ["Pescou um peixe gigante!", "O mar estava calmo hoje.", "Vendeu vários peixes frescos no mercado."] 
+            };
+        case "ti":
+            return { 
+                name: "Técnico de TI", 
+                frases: ["Removeu vírus do PC do chefe.", "Consertou a impressora (de novo).", "Atualizou o sistema sem travar nada."] 
+            };
+        default:
+            return { name: "Trabalhador", frases: ["Trabalhou duro."] };
+    }
+}
+
+function ms(ms) {
+    const seconds = ~~(ms / 1000);
+    const minutes = ~~(seconds / 60);
+    const hours = ~~(minutes / 60);
+    return { hours: hours % 24, minutes: minutes % 60, seconds: seconds % 60 };
+}
 
 function getJobDetails(job) {
     switch (job) {

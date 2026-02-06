@@ -1,3 +1,4 @@
+const { Events } = require("discord.js");
 const client = require("../../index");
 const logger = require("../../Utils/logger");
 
@@ -36,7 +37,7 @@ async function flush() {
         const now = Date.now();
         if (now - lastDbErrorAt > 30000) {
             lastDbErrorAt = now;
-            logger.error("Erro ao salvar contador de mensagens (batch)", { error: String(err?.message || err) });
+            logger.error("MessageBatch", `Failed to flush message stats: ${err.message}`, { stack: err.stack });
         }
     } finally {
         flushing = false;
@@ -44,22 +45,26 @@ async function flush() {
 }
 
 setInterval(() => {
-    flush().catch(() => {});
+    flush().catch((err) => {
+        logger.error("MessageBatch", `Interval flush error: ${err.message}`);
+    });
 }, 10 * 1000);
 
-client.on("messageCreate", async (message) => {
-    if (!message || !message.guild) return;
-    if (message.author?.bot) return;
-    if (!client.userdb) return;
+module.exports = (client) => {
+    client.on(Events.MessageCreate, async (message) => {
+        if (!message || !message.guild) return;
+        if (message.author?.bot) return;
+        if (!client.userdb) return;
 
-    try {
-        bump(message.author.id, 1);
-        if (buffer.size > 5000) flush().catch(() => {});
-    } catch (err) {
-        const now = Date.now();
-        if (now - lastDbErrorAt > 30000) {
-            lastDbErrorAt = now;
-            logger.error("Erro ao contar mensagem", { error: String(err?.message || err) });
+        try {
+            bump(message.author.id, 1);
+            if (buffer.size > 5000) flush().catch((err) => logger.error("MessageBatch", `Overflow flush error: ${err.message}`));
+        } catch (err) {
+            const now = Date.now();
+            if (now - lastDbErrorAt > 30000) {
+                lastDbErrorAt = now;
+                logger.error("MessageEvent", `Error bumping message count: ${err.message}`);
+            }
         }
-    }
-});
+    });
+};
