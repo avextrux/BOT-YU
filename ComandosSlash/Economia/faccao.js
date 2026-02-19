@@ -160,19 +160,22 @@ module.exports = {
             const row = new Discord.ActionRowBuilder().addComponents(menu);
 
             const { user: startUser, faction: startFaction } = await getMyFaction(client, interaction.guildId, interaction.user.id);
-            const home = new Discord.MessageEmbed()
+            const home = new Discord.EmbedBuilder()
                 .setTitle("🏴 HUB DE FACÇÕES")
-                .setColor("DARK_BUT_NOT_BLACK")
+                .setColor("DarkButNotBlack")
                 .setDescription("Escolha uma ação no menu. Se o bot pedir algo, você digita e a mensagem é apagada.")
-                .addField(
-                    "Sua facção",
-                    startFaction
-                        ? `**${startFaction.name}** ${startFaction.tag ? `[\`${startFaction.tag}\`]` : ""}\nID: \`${startFaction.factionId}\`\nLíder: <@${startFaction.leaderId}>`
-                        : "Você ainda não está em uma facção.",
-                    false
+                .addFields(
+                    {
+                        name: "Sua facção",
+                        value: startFaction
+                            ? `**${startFaction.name}** ${startFaction.tag ? `[\`${startFaction.tag}\`]` : ""}\nID: \`${startFaction.factionId}\`\nLíder: <@${startFaction.leaderId}>`
+                            : "Você ainda não está em uma facção.",
+                        inline: false
+                    },
+                    { name: "Territórios", value: "Use a opção **Territórios** para ver quem domina cada distrito.", inline: false }
                 )
-                .addField("Territórios", "Use a opção **Territórios** para ver quem domina cada distrito.", false)
                 .setFooter({ text: `WDA • Direitos reservados • Seu status no evento é salvo no servidor. Heat/rep vem do /mercadonegro.` });
+            applyWDAFooter(home);
 
             await replyOrEdit(interaction, { embeds: [home], components: [row], ephemeral: true });
             const msg = await interaction.fetchReply();

@@ -81,9 +81,9 @@ module.exports = {
                     expiresAt: Date.now() + 10 * 60 * 1000
                 });
 
-                const embed = new Discord.MessageEmbed()
+                const embed = new Discord.EmbedBuilder()
                     .setTitle("🪢 Forca")
-                    .setColor("BLURPLE")
+                    .setColor("Blurple")
                     .setDescription(
                         `Palavra: **${maskWord(answer, new Set())}**\n\n` +
                         `Vidas: **6**\n` +
@@ -140,9 +140,9 @@ module.exports = {
             const solved = isSolved(s.answer, s.guessed);
             const dead = s.lives <= 0;
 
-            const embed = new Discord.MessageEmbed()
+            const embed = new Discord.EmbedBuilder()
                 .setTitle("🪢 Forca")
-                .setColor(solved ? "GREEN" : dead ? "RED" : "BLURPLE")
+                .setColor(solved ? "Green" : dead ? "Red" : "Blurple")
                 .addFields(
                     { name: "Palavra", value: `**${maskWord(s.answer, s.guessed)}**`, inline: false },
                     { name: "Vidas", value: `**${Math.max(s.lives, 0)}**`, inline: true },

@@ -107,13 +107,15 @@ module.exports = {
             const row = new Discord.ActionRowBuilder().addComponents(menu);
 
             const isMeOfficer = isOfficer(police, interaction.user.id);
-            const home = new Discord.MessageEmbed()
+            const home = new Discord.EmbedBuilder()
                 .setTitle("👮 HUB DA POLÍCIA")
-                .setColor("BLURPLE")
+                .setColor("Blurple")
                 .setDescription("Escolha uma ação no menu. Se eu pedir algo, você digita e a mensagem é apagada.")
-                .addField("Chefe", police.chiefId ? `<@${police.chiefId}>` : "—", true)
-                .addField("Oficiais", String((police.officers || []).length), true)
-                .addField("Seu status", isMeOfficer ? "✅ Polícia" : "⚠️ Civil", true);
+                .addFields(
+                    { name: "Chefe", value: police.chiefId ? `<@${police.chiefId}>` : "—", inline: true },
+                    { name: "Oficiais", value: String((police.officers || []).length), inline: true },
+                    { name: "Seu status", value: isMeOfficer ? "✅ Polícia" : "⚠️ Civil", inline: true }
+                );
             applyWDAFooter(home);
 
             await replyOrEdit(interaction, { embeds: [home], components: [row], ephemeral: true });
@@ -171,13 +173,15 @@ module.exports = {
 
                     if (action === "status") {
                         const st = getOfficerStats(pol, interaction.user.id);
-                        const e = new Discord.MessageEmbed()
+                        const e = new Discord.EmbedBuilder()
                             .setTitle("👮 Status da Polícia")
-                            .setColor("BLURPLE")
-                            .addField("Chefe", pol.chiefId ? `<@${pol.chiefId}>` : "—", true)
-                            .addField("Oficiais", String((pol.officers || []).length), true)
-                            .addField("Você", meIsOfficer ? "✅ Polícia" : "⚠️ Civil", true)
-                            .addField("Seus stats", `Apreensão: ${formatMoney(st.seizuresValue || 0)}\nCasos: ${st.casesClosed || 0}\nPatrulhas: ${st.patrols || 0}`, false);
+                            .setColor("Blurple")
+                            .addFields(
+                                { name: "Chefe", value: pol.chiefId ? `<@${pol.chiefId}>` : "—", inline: true },
+                                { name: "Oficiais", value: String((pol.officers || []).length), inline: true },
+                                { name: "Você", value: meIsOfficer ? "✅ Polícia" : "⚠️ Civil", inline: true },
+                                { name: "Seus stats", value: `Apreensão: ${formatMoney(st.seizuresValue || 0)}\nCasos: ${st.casesClosed || 0}\nPatrulhas: ${st.patrols || 0}`, inline: false }
+                            );
                         return safe(i.editReply({ embeds: [e], components: [row] }));
                     }
 
@@ -215,7 +219,7 @@ module.exports = {
                         const lines = pend.length
                             ? pend.map((r) => `• <@${r.userId}> — <t:${Math.floor((r.at || 0) / 1000)}:R>\n  ${r.reason || "-"}`).join("\n")
                             : "Nenhum pedido pendente.";
-                        const e = new Discord.MessageEmbed().setTitle("📨 Pedidos Pendentes").setColor("BLURPLE").setDescription(lines.slice(0, 3900));
+                        const e = new Discord.EmbedBuilder().setTitle("📨 Pedidos Pendentes").setColor("Blurple").setDescription(lines.slice(0, 3900));
                         return safe(i.editReply({ embeds: [e], components: [row] }));
                     }
 
@@ -255,7 +259,7 @@ module.exports = {
                         const lines = top.length
                             ? top.map((x, idx) => `**${idx + 1}.** <@${x.id}> — ${formatMoney(x.s.seizuresValue || 0)} apreendidos • ${x.s.casesClosed || 0} casos`).join("\n")
                             : "Sem dados ainda.";
-                        const e = new Discord.MessageEmbed().setTitle("🏆 Ranking da Polícia").setColor("BLURPLE").setDescription(lines);
+                        const e = new Discord.EmbedBuilder().setTitle("🏆 Ranking da Polícia").setColor("Blurple").setDescription(lines);
                         return safe(i.editReply({ embeds: [e], components: [row] }));
                     }
 
@@ -264,7 +268,7 @@ module.exports = {
                         const lines = list.length
                             ? list.map((c) => `• **${c.caseId}** — suspeito <@${c.suspectId}> • ${c.progress || 0}% • ${formatMoney(c.estimatedValue || 0)}`).join("\n")
                             : "Nenhum caso aberto.";
-                        const e = new Discord.MessageEmbed().setTitle("🗂️ Casos Abertos").setColor("BLURPLE").setDescription(lines);
+                        const e = new Discord.EmbedBuilder().setTitle("🗂️ Casos Abertos").setColor("Blurple").setDescription(lines);
                         return safe(i.editReply({ embeds: [e], components: [row] }));
                     }
 
@@ -603,7 +607,7 @@ module.exports = {
                             })
                             .join("\n")
                             .slice(0, 3900);
-                        const e = new Discord.MessageEmbed().setTitle("📌 Missões Policiais").setColor("BLURPLE").setDescription(lines || "Nenhuma missão disponível.");
+                        const e = new Discord.EmbedBuilder().setTitle("📌 Missões Policiais").setColor("Blurple").setDescription(lines || "Nenhuma missão disponível.");
                         return safe(i.editReply({ embeds: [e], components: [row] }));
                     }
 

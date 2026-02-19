@@ -46,15 +46,15 @@ module.exports = {
             const correct = item.c;
 
             const row = new Discord.ActionRowBuilder().addComponents(
-                new Discord.ButtonBuilder().setCustomId("q0").setLabel(item.a[0]).setStyle("PRIMARY"),
-                new Discord.ButtonBuilder().setCustomId("q1").setLabel(item.a[1]).setStyle("PRIMARY"),
-                new Discord.ButtonBuilder().setCustomId("q2").setLabel(item.a[2]).setStyle("PRIMARY"),
-                new Discord.ButtonBuilder().setCustomId("q3").setLabel(item.a[3]).setStyle("PRIMARY")
+                new Discord.ButtonBuilder().setCustomId("q0").setLabel(item.a[0]).setStyle(Discord.ButtonStyle.Primary),
+                new Discord.ButtonBuilder().setCustomId("q1").setLabel(item.a[1]).setStyle(Discord.ButtonStyle.Primary),
+                new Discord.ButtonBuilder().setCustomId("q2").setLabel(item.a[2]).setStyle(Discord.ButtonStyle.Primary),
+                new Discord.ButtonBuilder().setCustomId("q3").setLabel(item.a[3]).setStyle(Discord.ButtonStyle.Primary)
             );
 
-            const embed = new Discord.MessageEmbed()
+            const embed = new Discord.EmbedBuilder()
                 .setTitle("🧠 Quiz")
-                .setColor("BLURPLE")
+                .setColor("Blurple")
                 .setDescription(item.q)
                 .setFooter({ text: "Você tem 20 segundos." });
 
@@ -79,9 +79,9 @@ module.exports = {
                 else current.loses += 1;
                 scores.set(interaction.user.id, current);
 
-                const end = new Discord.MessageEmbed()
+                const end = new Discord.EmbedBuilder()
                     .setTitle("🧠 Quiz - Resultado")
-                    .setColor(ok ? "GREEN" : "RED")
+                    .setColor(ok ? "Green" : "Red")
                     .setDescription(
                         `${item.q}\n\n` +
                         `Sua resposta: **${item.a[picked]}**\n` +
@@ -95,9 +95,9 @@ module.exports = {
 
             collector.on("end", async (collected) => {
                 if (collected.size === 0) {
-                    const end = new Discord.MessageEmbed()
+                    const end = new Discord.EmbedBuilder()
                         .setTitle("🧠 Quiz")
-                        .setColor("GREY")
+                        .setColor("Grey")
                         .setDescription(`⏰ Tempo esgotado!\n\nCorreta: **${item.a[correct]}**`);
                     await safe(interaction.editReply({ embeds: [end], components: [] }));
                 }

@@ -1,4 +1,4 @@
-const { MessageEmbed } = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 const moment = require("moment");
 moment.locale("pt-br");
 
@@ -19,10 +19,10 @@ module.exports = {
             const user = interaction.options.getUser("usuario") || interaction.user;
             const member = interaction.guild.members.cache.get(user.id);
 
-            const embed = new MessageEmbed()
+            const embed = new EmbedBuilder()
                 .setTitle(`ℹ️ Informações de ${user.username}`)
                 .setThumbnail(user.displayAvatarURL({ dynamic: true }))
-                .setColor("BLUE")
+                .setColor("Blue")
                 .addFields(
                     { name: "🆔 ID", value: user.id, inline: true },
                     { name: "🏷️ Tag", value: user.tag, inline: true },

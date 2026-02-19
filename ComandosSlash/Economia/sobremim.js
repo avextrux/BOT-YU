@@ -1,4 +1,4 @@
-const Discord = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 
 module.exports = {
     name: "sobremim",
@@ -18,7 +18,7 @@ module.exports = {
 
             if (texto.length > 150) {
                 return interaction.reply({ 
-                    embeds: [new Discord.MessageEmbed().setColor("RED").setDescription("❌ O texto deve ter no máximo 150 caracteres.")], 
+                    embeds: [new EmbedBuilder().setColor("Red").setDescription("❌ O texto deve ter no máximo 150 caracteres.")], 
                     ephemeral: true 
                 });
             }
@@ -28,9 +28,9 @@ module.exports = {
             userdb.economia.sobremim = texto;
             await userdb.save();
 
-            const embed = new Discord.MessageEmbed()
+            const embed = new EmbedBuilder()
                 .setTitle(`📝 Perfil Atualizado`)
-                .setColor("BLUE")
+                .setColor("Blue")
                 .setDescription(`Seu "Sobre Mim" foi alterado com sucesso!`)
                 .addFields({ name: "Nova Descrição", value: `*${texto}*` })
                 .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))

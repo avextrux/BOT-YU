@@ -1,4 +1,4 @@
-const { MessageEmbed, Permissions } = require("discord.js");
+const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
 const logger = require("../../Utils/logger");
 const { replyOrEdit, requireUserPerms, requireBotPerms } = require("../../Utils/commandKit");
 const { statusEmbed } = require("../../Utils/embeds");
@@ -43,9 +43,9 @@ module.exports = {
         try {
             if (!client.shopdb) return replyOrEdit(interaction, { embeds: [statusEmbed("error", "Banco da loja indisponível.", { title: "Loja" })], ephemeral: true });
 
-            const uPerm = requireUserPerms(interaction, Permissions.FLAGS.MANAGE_GUILD, { message: "Você precisa da permissão **Gerenciar Servidor** para usar este comando." });
+            const uPerm = requireUserPerms(interaction, PermissionFlagsBits.ManageGuild, { message: "Você precisa da permissão **Gerenciar Servidor** para usar este comando." });
             if (!uPerm.ok) return replyOrEdit(interaction, uPerm.payload);
-            const bPerm = await requireBotPerms(interaction, [Permissions.FLAGS.SEND_MESSAGES, Permissions.FLAGS.EMBED_LINKS], { message: "Eu não tenho permissão para enviar mensagens/embeds neste servidor." });
+            const bPerm = await requireBotPerms(interaction, [PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks], { message: "Eu não tenho permissão para enviar mensagens/embeds neste servidor." });
             if (!bPerm.ok) return replyOrEdit(interaction, bPerm.payload);
 
             const subCmd = interaction.options.getSubcommand();
@@ -76,9 +76,9 @@ module.exports = {
 
                 await newItem.save();
 
-                const embed = new MessageEmbed()
+                const embed = new EmbedBuilder()
                     .setTitle("✅ Item Criado!")
-                    .setColor("GREEN")
+                    .setColor("Green")
                     .addFields(
                         { name: "ID", value: `\`${itemID}\``, inline: true },
                         { name: "Nome", value: name, inline: true },

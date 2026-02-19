@@ -1,4 +1,4 @@
-const Discord = require("../../Utils/djs");
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require("discord.js");
 const { formatMoney, debitWalletIfEnough, creditWallet, errorEmbed } = require("../../Utils/economy");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
 const logger = require("../../Utils/logger");
@@ -22,9 +22,9 @@ function contractEmbed(contract, client) {
         cancelled: "🚫 Cancelado",
     };
 
-    const embed = new Discord.MessageEmbed()
+    const embed = new EmbedBuilder()
         .setTitle(`📜 ${contract.title || "Contrato"} • #${shortId(contract)}`)
-        .setColor(contract.status === "active" ? "GREEN" : contract.status === "pending" ? "YELLOW" : "GREY")
+        .setColor(contract.status === "active" ? "Green" : contract.status === "pending" ? "Yellow" : "Grey")
         .setDescription(contract.description?.slice(0, 800) || "-")
         .addFields(
             { name: "Status", value: statusMap[contract.status] || contract.status, inline: true },
@@ -184,7 +184,7 @@ module.exports = {
                 contract.status = "active";
                 await contract.save();
 
-                return interaction.reply({ embeds: [contractEmbed(contract, client).setColor("GREEN").addFields({ name: "Ativado", value: "✅ Contrato ativo. Se houver quebra, abra /contrato arbitragem." })] });
+                return interaction.reply({ embeds: [contractEmbed(contract, client).setColor("Green").addFields({ name: "Ativado", value: "✅ Contrato ativo. Se houver quebra, abra /contrato arbitragem." })] });
             }
 
             if (sub === "cancelar") {
@@ -200,7 +200,7 @@ module.exports = {
                 contract.status = "cancelled";
                 await contract.save();
 
-                return interaction.reply({ embeds: [contractEmbed(contract, client).setColor("GREY").addFields({ name: "Cancelado", value: "✅ Escrow devolvido à parte A." })] });
+                return interaction.reply({ embeds: [contractEmbed(contract, client).setColor("Grey").addFields({ name: "Cancelado", value: "✅ Escrow devolvido à parte A." })] });
             }
 
             if (sub === "finalizar") {
@@ -227,7 +227,7 @@ module.exports = {
                 await contract.save();
 
                 const embed = contractEmbed(contract, client)
-                    .setColor(both ? "GREEN" : "YELLOW")
+                    .setColor(both ? "Green" : "Yellow")
                     .addFields({
                         name: "Conclusão",
                         value: both
@@ -255,18 +255,18 @@ module.exports = {
                 contract.dispute.decidedWinner = null;
                 await contract.save();
 
-                const btnA = new Discord.ButtonBuilder().setCustomId(`ct_a_${contract._id}`).setLabel("A favor da Parte A").setStyle("PRIMARY");
-                const btnB = new Discord.ButtonBuilder().setCustomId(`ct_b_${contract._id}`).setLabel("A favor da Parte B").setStyle("PRIMARY");
-                const row = new Discord.ActionRowBuilder().addComponents(btnA, btnB);
+                const btnA = new ButtonBuilder().setCustomId(`ct_a_${contract._id}`).setLabel("A favor da Parte A").setStyle(ButtonStyle.Primary);
+                const btnB = new ButtonBuilder().setCustomId(`ct_b_${contract._id}`).setLabel("A favor da Parte B").setStyle(ButtonStyle.Primary);
+                const row = new ActionRowBuilder().addComponents(btnA, btnB);
 
                 const embed = contractEmbed(contract, client)
-                    .setColor("YELLOW")
+                    .setColor("Yellow")
                     .addFields({ name: "Votação", value: `Vote usando os botões abaixo. Encerra em 2 minutos. Mínimo: **${minVotes}** votos.` });
 
                 const msg = await replyOrEditFetch(interaction, { embeds: [embed], components: [row] });
                 if (!msg) return;
 
-                const collector = msg.createMessageComponentCollector({ componentType: Discord.ComponentType.Button, time: 2 * 60 * 1000 });
+                const collector = msg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 2 * 60 * 1000 });
 
                 collector.on("collect", async (i) => {
                     try {
@@ -286,7 +286,7 @@ module.exports = {
                         await fresh.save();
 
                         const updatedEmbed = contractEmbed(fresh, client)
-                            .setColor("YELLOW")
+                            .setColor("Yellow")
                             .addFields({ name: "Votação", value: `🅰️ ${fresh.dispute.votesA} | 🅱️ ${fresh.dispute.votesB}` });
                         await i.update({ embeds: [updatedEmbed] }).catch(() => {});
                     } catch (e) {
@@ -304,7 +304,7 @@ module.exports = {
                         fresh.dispute.active = false;
                         await fresh.save().catch(() => {});
                         await interaction.editReply({
-                            embeds: [contractEmbed(fresh, client).setColor("GREY").addFields({ name: "Arbitragem", value: "❌ Votação insuficiente. Tente novamente depois." })],
+                            embeds: [contractEmbed(fresh, client).setColor("Grey").addFields({ name: "Arbitragem", value: "❌ Votação insuficiente. Tente novamente depois." })],
                             components: [],
                         }).catch(() => {});
                         return;
@@ -331,7 +331,7 @@ module.exports = {
                     await interaction.editReply({
                         embeds: [
                             contractEmbed(fresh, client)
-                                .setColor("GREEN")
+                                .setColor("Green")
                                 .addFields({
                                     name: "Decisão",
                                     value: `🏁 Vencedor: <@${winner}>\nPerdedor: <@${loser}>\nPagamento: **${formatMoney(winnerGets)}** (escrow total)`

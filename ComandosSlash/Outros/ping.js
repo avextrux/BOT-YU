@@ -1,4 +1,4 @@
-const { MessageEmbed } = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 
 module.exports = {
     name: "ping",
@@ -8,14 +8,13 @@ module.exports = {
         try {
             const start = Date.now();
             
-            // Medir tempo de resposta do banco de dados (opcional, mas legal de ter)
-            // Se não quiser medir DB, pode remover a linha abaixo.
+            // Medir tempo de resposta do banco de dados
             await client.userdb.findOne({ userID: interaction.user.id }); 
             const dbLatency = Date.now() - start;
 
-            const embed = new MessageEmbed()
-                .setColor("BLUE")
-                .setTitle("� Pong!")
+            const embed = new EmbedBuilder()
+                .setColor("Blue")
+                .setTitle("🏓 Pong!")
                 .addFields(
                     { name: "📡 Latência da API", value: `\`${Math.round(client.ws.ping)}ms\``, inline: true },
                     { name: "🍃 Latência do Banco", value: `\`${dbLatency}ms\``, inline: true },

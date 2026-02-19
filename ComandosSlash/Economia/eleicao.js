@@ -64,9 +64,9 @@ module.exports = {
             const candidatesCount = (eco.election.candidates || []).length;
             const votersCount = (eco.election.voters || []).length;
 
-            const embed = new Discord.MessageEmbed()
+            const embed = new Discord.EmbedBuilder()
                 .setTitle("🗳️ Central de Eleições")
-                .setColor("GOLD")
+                .setColor("Gold")
                 .setDescription(active 
                     ? `✅ **Eleição em andamento!**\nTermina <t:${Math.floor((eco.election.endsAt||0)/1000)}:R>.\n\nUse o menu abaixo para votar ou se candidatar.`
                     : "⛔ **Nenhuma eleição ativa no momento.**\nFique atento aos anúncios ou consulte o placar da última edição.")
@@ -132,20 +132,20 @@ module.exports = {
                         const shop = freshEco.election.voteShop || {};
                         if (!shop.enabled) return safe(i.reply({ content: "❌ Compra de votos desativada.", ephemeral: true }));
 
-                        const modal = new Discord.Modal()
+                        const modal = new Discord.ModalBuilder()
                             .setCustomId('eleicao_buy_modal')
                             .setTitle('Compra de Votos');
 
-                        const inputId = new Discord.TextInputComponent()
+                        const inputId = new Discord.TextInputBuilder()
                             .setCustomId('target_id')
                             .setLabel("ID do Candidato")
-                            .setStyle('SHORT')
+                            .setStyle(Discord.TextInputStyle.Short)
                             .setRequired(true);
 
-                        const inputQty = new Discord.TextInputComponent()
+                        const inputQty = new Discord.TextInputBuilder()
                             .setCustomId('quantity')
                             .setLabel("Quantidade de Votos")
-                            .setStyle('SHORT')
+                            .setStyle(Discord.TextInputStyle.Short)
                             .setPlaceholder("Ex: 10")
                             .setRequired(true);
 
@@ -176,9 +176,9 @@ module.exports = {
                     }
 
                     if (action === "regras") {
-                        const e = new Discord.MessageEmbed()
+                        const e = new Discord.EmbedBuilder()
                             .setTitle("📜 Regras Eleitorais")
-                            .setColor("WHITE")
+                            .setColor("White")
                             .setDescription(
                                 "1. Cada cidadão tem direito a **1 voto gratuito**.\n" +
                                 "2. É permitido **comprar votos** adicionais para qualquer candidato.\n" +

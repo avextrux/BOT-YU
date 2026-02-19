@@ -1,11 +1,11 @@
-const Discord = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 
 const DEFAULT_OWNER_ID = process.env.CENTRAL_BANK_OWNER_ID || "589646045756129301";
 
 function isAdminMember(interaction) {
     return (
-        interaction.member?.permissions?.has("ADMINISTRATOR") ||
-        interaction.member?.permissions?.has("MANAGE_GUILD")
+        interaction.member?.permissions?.has("Administrator") ||
+        interaction.member?.permissions?.has("ManageGuild")
     );
 }
 
@@ -29,9 +29,9 @@ module.exports = {
             const allowed = isAdminMember(interaction) || hasCentralScope(eco, interaction.user.id);
             if (!allowed) return interaction.reply({ content: "❌ Apenas administração do servidor pode ver este help.", ephemeral: true });
 
-            const embed = new Discord.MessageEmbed()
+            const embed = new EmbedBuilder()
                 .setTitle("💣 Evento Submundo — Ajuda ADM")
-                .setColor("DARK_BUT_NOT_BLACK")
+                .setColor("DarkButNotBlack")
                 .setDescription(
                     [
                         "Este painel lista apenas comandos de **administração** do evento Submundo.",

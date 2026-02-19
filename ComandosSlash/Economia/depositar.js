@@ -1,6 +1,6 @@
-const Discord = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 const { getRandomGifUrl } = require("../../Utils/giphy");
-const { formatMoney, parseAmountInput, transferWalletToBank, errorEmbed } = require("../../Utils/economy");
+const { formatMoney, parseAmountInput, debitWalletIfEnough, errorEmbed } = require("../../Utils/economy");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
 
 module.exports = {
@@ -22,7 +22,6 @@ module.exports = {
             const gate = await ensureEconomyAllowed(client, interaction, interaction.user.id);
             if (!gate.ok) return interaction.reply({ embeds: [gate.embed], ephemeral: true });
             
-            // Busca ou cria o usuário
             let userdb = gate.userdb;
             const carteira = userdb.economia.money || 0;
 
@@ -40,26 +39,30 @@ module.exports = {
                 return interaction.reply({ embeds: [errorEmbed("❌ Você não tem dinheiro suficiente na carteira para depositar.")], ephemeral: true });
             }
 
-            const updated = await transferWalletToBank(
+            const updated = await debitWalletIfEnough(
                 client.userdb,
                 interaction.user.id,
                 valorDepositar,
-                { by: interaction.user.id, channel: interaction.channelId }
+                "bank_deposit",
+                { channel: interaction.channelId }
             );
 
             if (!updated) {
                 return interaction.reply({ embeds: [errorEmbed("❌ Saldo insuficiente na carteira.")], ephemeral: true });
             }
 
-            userdb = updated;
+            // Credita no banco
+            userdb = await client.userdb.findOne({ userID: interaction.user.id });
+            userdb.economia.banco = (userdb.economia.banco || 0) + valorDepositar;
+            await userdb.save();
 
             const gif =
-                (await getRandomGifUrl("bank deposit", { rating: "pg-13" }).catch(() => null)) ||
-                "https://media.giphy.com/media/26BRBupaJvXQy1m7S/giphy.gif";
+                (await getRandomGifUrl("money deposit", { rating: "pg-13" }).catch(() => null)) ||
+                "https://media.giphy.com/media/l0Ex6kAKAoFRsFh6M/giphy.gif";
 
-            const embed = new Discord.MessageEmbed()
+            const embed = new EmbedBuilder()
                 .setTitle(`🏦 Depósito Realizado`)
-                .setColor("GREEN")
+                .setColor("Green")
                 .setDescription(`✅ Você depositou **${formatMoney(valorDepositar)}** no banco.`)
                 .addFields(
                     { name: "💵 Carteira", value: formatMoney(userdb.economia.money), inline: true },

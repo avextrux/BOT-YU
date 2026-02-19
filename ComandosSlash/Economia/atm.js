@@ -1,4 +1,4 @@
-const Discord = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 const { formatMoney } = require("../../Utils/economy");
 const logger = require("../../Utils/logger");
 const { replyOrEdit } = require("../../Utils/commandKit");
@@ -6,18 +6,18 @@ const { replyOrEdit } = require("../../Utils/commandKit");
 module.exports = {
     name: "atm",
     description: "Ver a sua carteira ou a de alguém",
-    type: 'CHAT_INPUT',
+    type: 1, // CHAT_INPUT
     options: [
         {
             name: "usuario",
             description: "Usuário que você quer ver a atm.",
-            type: "USER",
+            type: 6, // USER
             required: false
         },
     ],
     run: async (client, interaction) => {
         try {
-            const user = interaction.options.getUser("usuario") || interaction.user
+            const user = interaction.options.getUser("usuario") || interaction.user;
             
             // Usa o getOrCreate para garantir que não quebre se o usuário for novo
             const userdb = await client.userdb.getOrCreate(user.id);
@@ -28,10 +28,10 @@ module.exports = {
             const dailyStreak = userdb.economia?.stats?.dailyStreak || 0;
             const workStreak = userdb.economia?.stats?.workStreak || 0;
 
-            const embed = new Discord.MessageEmbed()
+            const embed = new EmbedBuilder()
                 .setTitle(`💳 Extrato Bancário`)
                 .setAuthor({ name: user.tag, iconURL: user.displayAvatarURL({ dynamic: true }) })
-                .setColor("GOLD")
+                .setColor("Gold")
                 .setThumbnail("https://i.imgur.com/4M7IWwP.png") // Ícone de carteira/banco genérico
                 .addFields(
                     { name: "💵 Carteira", value: formatMoney(money), inline: true },

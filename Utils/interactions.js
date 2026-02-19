@@ -1,4 +1,4 @@
-const Discord = require("./djs");
+const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = require("discord.js");
 
 async function safe(promise) {
     try {
@@ -22,54 +22,52 @@ async function promptOneLine(interactionLike, { prompt, timeMs = 60000 } = {}) {
 }
 
 function buildModal({ customId, title, inputs }) {
-    const modal = new Discord.Modal().setCustomId(customId).setTitle(String(title || "Formulário").slice(0, 45));
-    const rows = [];
+    const modal = new ModalBuilder()
+        .setCustomId(customId)
+        .setTitle(String(title || "Formulário").slice(0, 45));
+        
     for (const input of inputs || []) {
-        const c = new Discord.TextInputComponent()
+        const style = input.style === "PARAGRAPH" ? TextInputStyle.Paragraph : TextInputStyle.Short;
+        
+        const c = new TextInputBuilder()
             .setCustomId(String(input.id).slice(0, 100))
             .setLabel(String(input.label || "Campo").slice(0, 45))
-            .setStyle(input.style === "PARAGRAPH" ? "PARAGRAPH" : "SHORT")
+            .setStyle(style)
             .setRequired(input.required !== false);
+            
         if (input.minLength !== undefined) c.setMinLength(Math.max(0, Math.min(4000, Number(input.minLength) || 0)));
         if (input.maxLength !== undefined) c.setMaxLength(Math.max(1, Math.min(4000, Number(input.maxLength) || 4000)));
         if (input.placeholder) c.setPlaceholder(String(input.placeholder).slice(0, 100));
-        rows.push(new Discord.MessageActionRow().addComponents(c));
+        
+        const row = new ActionRowBuilder().addComponents(c);
+        modal.addComponents(row);
     }
-    modal.addComponents(rows.slice(0, 5));
     return modal;
 }
 
-async function promptModal(interaction, { title, inputs, timeMs = 60000, customIdPrefix = "prompt" } = {}) {
-    const customId = `${customIdPrefix}:${interaction.user.id}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 7)}`.slice(0, 95);
-    const modal = buildModal({ customId, title, inputs });
-    await safe(interaction.showModal(modal));
+async function promptModal(interaction, { title, inputs, timeMs = 300000, customIdPrefix = "prompt" } = {}) {
+    // Unique ID for this specific modal instance
+    const uniqueId = `${customIdPrefix}_${interaction.id}_${Date.now()}`;
+    const modal = buildModal({ customId: uniqueId, title, inputs });
+    
+    await interaction.showModal(modal);
 
-    return await new Promise((resolve) => {
-        const client = interaction.client;
-        const timer = setTimeout(() => {
-            cleanup();
-            resolve(null);
-        }, timeMs);
+    try {
+        const submitted = await interaction.awaitModalSubmit({
+            filter: (i) => i.customId === uniqueId && i.user.id === interaction.user.id,
+            time: timeMs,
+        });
 
-        const handler = (i) => {
-            if (!i?.isModalSubmit?.()) return;
-            if (i.customId !== customId) return;
-            if (i.user?.id !== interaction.user.id) return;
-            cleanup();
-            const values = {};
-            for (const input of inputs || []) {
-                values[input.id] = i.fields.getTextInputValue(input.id);
-            }
-            resolve({ modalInteraction: i, values });
-        };
-
-        const cleanup = () => {
-            clearTimeout(timer);
-            client.removeListener("interactionCreate", handler);
-        };
-
-        client.on("interactionCreate", handler);
-    });
+        const values = {};
+        for (const input of inputs || []) {
+            values[input.id] = submitted.fields.getTextInputValue(input.id);
+        }
+        
+        return { modalInteraction: submitted, values };
+    } catch (err) {
+        // Timeout or error
+        return null;
+    }
 }
 
 module.exports = {

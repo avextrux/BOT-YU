@@ -1,4 +1,4 @@
-const { MessageEmbed } = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 
 module.exports = {
     name: "avatar",
@@ -16,9 +16,9 @@ module.exports = {
         try {
             const user = interaction.options.getUser("usuario") || interaction.user;
 
-            const embed = new MessageEmbed()
+            const embed = new EmbedBuilder()
                 .setTitle(`🖼️ Avatar de ${user.tag}`)
-                .setColor("BLUE")
+                .setColor("Blue")
                 .setImage(user.displayAvatarURL({ dynamic: true, size: 4096 }))
                 .setFooter({ text: `Solicitado por ${interaction.user.tag}`, iconURL: interaction.user.displayAvatarURL() });
 

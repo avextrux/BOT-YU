@@ -1,4 +1,4 @@
-const Discord = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 
 module.exports = {
     name: "sorteio",
@@ -27,9 +27,9 @@ module.exports = {
 
             const winner = options[Math.floor(Math.random() * options.length)];
 
-            const embed = new Discord.MessageEmbed()
+            const embed = new EmbedBuilder()
                 .setTitle("🎲 Sorteio")
-                .setColor("GOLD")
+                .setColor("Gold")
                 .addFields(
                     { name: "Opções", value: options.map((o) => `• ${o}`).join("\n").slice(0, 1024) },
                     { name: "Resultado", value: `✅ **${winner}**` }

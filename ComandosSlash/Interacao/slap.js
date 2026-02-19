@@ -65,10 +65,10 @@ module.exports = {
         };
         const frase = (frases[intensidade] || frases.normal)[Math.floor((frases[intensidade] || frases.normal).length * Math.random())];
 
-        const embed = new Discord.MessageEmbed()
+        const embed = new Discord.EmbedBuilder()
             .setTitle("🤚 Slap")
             .setDescription(`**${interaction.user}** deu um tapa em **${user}** — ${frase}`)
-            .setColor("ORANGE")
+            .setColor("Orange")
             .setImage(gif);
 
         interaction.editReply({ embeds: [embed] });

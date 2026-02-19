@@ -41,10 +41,10 @@ module.exports = {
         const randomGif = await getRandomGifUrl("anime kiss", { rating: "pg-13" }).catch(() => null);
         const fallback = fallbacks[Math.floor(Math.random() * fallbacks.length)];
 
-        const embed = new Discord.MessageEmbed()
+        const embed = new Discord.EmbedBuilder()
             .setTitle("💋 Kiss")
             .setDescription(`**${interaction.user}** beijou **${user}**!${mensagem ? `\n\n💬 ${mensagem.slice(0, 180)}` : ""}`)
-            .setColor("RED")
+            .setColor("Red")
             .setImage(randomGif || fallback);
 
         interaction.editReply({ embeds: [embed] });

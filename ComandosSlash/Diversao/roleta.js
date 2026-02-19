@@ -70,7 +70,7 @@ module.exports = {
 
             const lucro = (aposta * multiplicador) - aposta;
 
-            const embed = new Discord.MessageEmbed()
+            const embed = new Discord.EmbedBuilder()
                 .setTitle("🎰 Roleta")
                 .addFields(
                     { name: "Sua Aposta", value: `${aposta} no ${corEscolhida.toUpperCase()}`, inline: true },
@@ -79,11 +79,11 @@ module.exports = {
 
             if (ganhou) {
                 userdb.economia.money += lucro;
-                embed.setColor("GREEN");
+                embed.setColor("Green");
                 embed.setDescription(`🎉 **VITORIA!** Você ganhou **R$ ${aposta * multiplicador}**!`);
             } else {
                 userdb.economia.money -= aposta;
-                embed.setColor("RED");
+                embed.setColor("Red");
                 embed.setDescription(`💸 Você perdeu **R$ ${aposta}**.`);
             }
 

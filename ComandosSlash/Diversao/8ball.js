@@ -23,11 +23,11 @@ module.exports = {
         const pergunta = interaction.options.getString("pergunta");
         const resposta = respostas[Math.floor(Math.random() * respostas.length)];
 
-        let cor = "BLUE";
-        if (["Não", "duvidoso"].some(x => resposta.includes(x))) cor = "RED";
-        if (["Sim", "certeza", "provavelmente"].some(x => resposta.includes(x))) cor = "GREEN";
+        let cor = "Blue";
+        if (["Não", "duvidoso"].some(x => resposta.includes(x))) cor = "Red";
+        if (["Sim", "certeza", "provavelmente"].some(x => resposta.includes(x))) cor = "Green";
 
-        const embed = new Discord.MessageEmbed()
+        const embed = new Discord.EmbedBuilder()
             .setTitle("🎱 Bola Mágica 8Ball")
             .setColor(cor)
             .addFields(

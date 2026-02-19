@@ -1,4 +1,4 @@
-const Discord = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 const { formatMoney } = require("../../Utils/economy");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
 const logger = require("../../Utils/logger");
@@ -7,19 +7,22 @@ const { replyOrEdit } = require("../../Utils/commandKit");
 module.exports = {
     name: "comprar",
     description: "Compre um item da loja",
-    type: "CHAT_INPUT",
+    type: 1, // CHAT_INPUT
     options: [
         {
             name: "id",
             description: "O ID do item que você quer comprar (veja na /loja)",
-            type: "STRING",
+            type: 3, // STRING
             required: true
         }
     ],
     run: async (client, interaction) => {
         try {
+            await interaction.deferReply({ ephemeral: true }).catch(() => {});
+
             const gate = await ensureEconomyAllowed(client, interaction, interaction.user.id);
-            if (!gate.ok) return interaction.reply({ embeds: [gate.embed], ephemeral: true });
+            if (!gate.ok) return replyOrEdit(interaction, { embeds: [gate.embed], ephemeral: true });
+            
             const itemID = interaction.options.getString("id").toLowerCase();
             const guildID = interaction.guild.id;
 
@@ -27,8 +30,8 @@ module.exports = {
             const item = await client.shopdb.findOne({ guildID, itemID });
 
             if (!item) {
-                return interaction.reply({ 
-                    embeds: [new Discord.MessageEmbed().setColor("RED").setDescription(`❌ Item com ID \`${itemID}\` não encontrado na loja.`)], 
+                return replyOrEdit(interaction, { 
+                    embeds: [new EmbedBuilder().setColor("Red").setDescription(`❌ Item com ID \`${itemID}\` não encontrado na loja.`)], 
                     ephemeral: true 
                 });
             }
@@ -43,8 +46,8 @@ module.exports = {
             const saldo = userdb.economia.money || 0;
 
             if (saldo < finalPrice) {
-                return interaction.reply({ 
-                    embeds: [new Discord.MessageEmbed().setColor("RED").setDescription(`❌ Dinheiro insuficiente.\n💵 Você tem: **${formatMoney(saldo)}**\n💰 Preço: **${formatMoney(finalPrice)}**${inflation ? " (inflação)" : ""}`)], 
+                return replyOrEdit(interaction, { 
+                    embeds: [new EmbedBuilder().setColor("Red").setDescription(`❌ Dinheiro insuficiente.\n💵 Você tem: **${formatMoney(saldo)}**\n💰 Preço: **${formatMoney(finalPrice)}**${inflation ? " (inflação)" : ""}`)], 
                     ephemeral: true 
                 });
             }
@@ -55,7 +58,7 @@ module.exports = {
                 const role = interaction.guild.roles.cache.get(item.roleID);
                 if (role) {
                     if (interaction.member.roles.cache.has(role.id)) {
-                        return interaction.reply({ content: "❌ Você já possui o cargo que este item oferece.", ephemeral: true });
+                        return replyOrEdit(interaction, { content: "❌ Você já possui o cargo que este item oferece.", ephemeral: true });
                     }
                     try {
                         await interaction.member.roles.add(role);
@@ -81,13 +84,13 @@ module.exports = {
             userdb.economia.transactions = userdb.economia.transactions.slice(-50);
             await userdb.save();
 
-            const embed = new Discord.MessageEmbed()
+            const embed = new EmbedBuilder()
                 .setTitle("🛒 Compra Realizada!")
-                .setColor("GREEN")
+                .setColor("Green")
                 .setDescription(`Você comprou **${item.name}** por **${formatMoney(finalPrice)}**.${inflation ? " (inflação)" : ""}${roleStatus}`)
                 .setFooter({ text: `Saldo restante: ${formatMoney(userdb.economia.money)}` });
 
-            interaction.reply({ embeds: [embed] });
+            replyOrEdit(interaction, { embeds: [embed], ephemeral: true });
 
         } catch (err) {
             logger.error("Erro ao realizar compra", { error: String(err?.message || err) });

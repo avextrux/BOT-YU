@@ -211,14 +211,16 @@ module.exports = {
 
             const row = new Discord.ActionRowBuilder().addComponents(menu);
 
-            const home = new Discord.MessageEmbed()
+            const home = new Discord.EmbedBuilder()
                 .setTitle("💣 HUB DO MERCADO NEGRO")
-                .setColor("DARK_BUT_NOT_BLACK")
+                .setColor("DarkButNotBlack")
                 .setDescription("Escolha no menu. Se eu pedir algo, você digita e a mensagem é apagada.")
-                .addField("Evento", bmGuild.active ? "✅ Ativo" : "⚠️ Desativado", true)
-                .addField("Reputação", `**${rep.name}** (${rep.score} pts)`, true)
-                .addField("Heat", `**${Math.floor(bmUser.heat.level || 0)}**`, true)
-                .addField("Dica", "Comece em **Vendedores (NPCs)** → **Comprar item**.", false);
+                .addFields(
+                    { name: "Evento", value: bmGuild.active ? "✅ Ativo" : "⚠️ Desativado", inline: true },
+                    { name: "Reputação", value: `**${rep.name}** (${rep.score} pts)`, inline: true },
+                    { name: "Heat", value: `**${Math.floor(bmUser.heat.level || 0)}**`, inline: true },
+                    { name: "Dica", value: "Comece em **Vendedores (NPCs)** → **Comprar item**.", inline: false }
+                );
             applyWDAFooter(home);
 
             await replyOrEdit(interaction, { embeds: [home], components: [row], ephemeral: true });
@@ -272,25 +274,27 @@ module.exports = {
                             ? `**${String(op.kind || "operação")}** em **${pickDistrict(op.districtId).name}** • termina <t:${Math.floor((op.endsAt || 0) / 1000)}:R>`
                             : "—";
 
-                        const e = new Discord.MessageEmbed()
+                        const e = new Discord.EmbedBuilder()
                             .setTitle("💣 Status do Submundo")
-                            .setColor("DARK_BUT_NOT_BLACK")
+                            .setColor("DarkButNotBlack")
                             .setDescription(g.active ? "✅ Evento ativo." : "⚠️ Evento desativado (admin pode ativar).")
-                            .addField("Reputação", `**${repNow.name}** (${repNow.score} pts)`, true)
-                            .addField("Heat", `**${Math.floor(u.heat.level || 0)}**`, true)
-                            .addField("Patrulha (servidor)", `**${patrolPct}%**`, true)
-                            .addField("Dinheiro sujo", formatMoney(dirty), true)
-                            .addField("Operação", opText, false)
-                            .addField("Evento relâmpago", discText, false);
+                            .addFields(
+                                { name: "Reputação", value: `**${repNow.name}** (${repNow.score} pts)`, inline: true },
+                                { name: "Heat", value: `**${Math.floor(u.heat.level || 0)}**`, inline: true },
+                                { name: "Patrulha (servidor)", value: `**${patrolPct}%**`, inline: true },
+                                { name: "Dinheiro sujo", value: formatMoney(dirty), inline: true },
+                                { name: "Operação", value: opText, inline: false },
+                                { name: "Evento relâmpago", value: discText, inline: false }
+                            );
                         return safe(i.editReply({ embeds: [e], components: [row] }));
                     }
 
                     if (action === "vendedores") {
                         const repNow = ensureRep(u);
                         ensureVendorState(g);
-                        const embed = new Discord.MessageEmbed()
+                        const embed = new Discord.EmbedBuilder()
                             .setTitle("🕶️ NPCs do Mercado Negro")
-                            .setColor("BLURPLE")
+                            .setColor("Blurple")
                             .setDescription("Use **Comprar item** e informe `NPC ITEM QTD [distrito]`.");
 
                         for (const vd of g.vendors || []) {
@@ -309,7 +313,7 @@ module.exports = {
                                 const price = priceInfo ? formatMoney(priceInfo.buyPriceRaw) : "-";
                                 lines.push(`${locked} **${item.id}** — ${item.name} • ${price} • estoque ${qty}`);
                             }
-                            embed.addField(`${name} (${vd.vendorId})`, `Reabastece: ${restock}\n${lines.join("\n").slice(0, 900)}`, false);
+                            embed.addFields({ name: `${name} (${vd.vendorId})`, value: `Reabastece: ${restock}\n${lines.join("\n").slice(0, 900)}`, inline: false });
                         }
 
                         return safe(i.editReply({ embeds: [embed], components: [row] }));
@@ -326,13 +330,15 @@ module.exports = {
                                 const item = ITEMS[k];
                                 return item ? `• **${item.id}** (${item.name}) — **${q}**` : `• **${k}** — **${q}**`;
                             });
-                        const e = new Discord.MessageEmbed()
+                        const e = new Discord.EmbedBuilder()
                             .setTitle("🎒 Inventário Ilícito")
-                            .setColor("DARK_BUT_NOT_BLACK")
+                            .setColor("DarkButNotBlack")
                             .setDescription(lines.length ? lines.join("\n") : "Você não tem itens ilícitos.")
-                            .addField("Reputação", `**${repNow.name}** (${repNow.score} pts)`, true)
-                            .addField("Heat", `**${Math.floor(u.heat.level || 0)}**`, true)
-                            .addField("Dinheiro sujo", formatMoney(Math.max(0, Math.floor(mainUser.economia?.dirtyMoney || 0))), true);
+                            .addFields(
+                                { name: "Reputação", value: `**${repNow.name}** (${repNow.score} pts)`, inline: true },
+                                { name: "Heat", value: `**${Math.floor(u.heat.level || 0)}**`, inline: true },
+                                { name: "Dinheiro sujo", value: formatMoney(Math.max(0, Math.floor(mainUser.economia?.dirtyMoney || 0))), inline: true }
+                            );
                         return safe(i.editReply({ embeds: [e], components: [row] }));
                     }
 
@@ -442,9 +448,9 @@ module.exports = {
                             : null;
 
                         if (caseId) {
-                            const embedAlert = new Discord.MessageEmbed()
+                            const embedAlert = new Discord.EmbedBuilder()
                                 .setTitle("🚨 ALERTA: Assalto em andamento")
-                                .setColor("RED")
+                                .setColor("Red")
                                 .setDescription(`Distrito: **${district.name}**\nCaso: **${caseId}**\nTempo: <t:${Math.floor(hotUntil / 1000)}:R>`);
                             await trySendAlert(client, g, { embeds: [embedAlert] });
                         }
@@ -631,9 +637,9 @@ module.exports = {
                             })
                             .join("\n")
                             .slice(0, 3900);
-                        const e = new Discord.MessageEmbed()
+                        const e = new Discord.EmbedBuilder()
                             .setTitle("📌 Missões (Diárias e Semanais)")
-                            .setColor("GOLD")
+                            .setColor("Gold")
                             .setDescription(lines || "Nenhuma missão disponível.")
                             .setFooter({ text: "Use “Resgatar missão” e cole o ID da missão" });
                         return safe(i.editReply({ embeds: [e], components: [row] }));
@@ -1005,9 +1011,9 @@ module.exports = {
                             "https://media.giphy.com/media/3o6gDWzmAzrpi5DQU8/giphy.gif";
 
                         const updated2 = await client.userdb.getOrCreate(interaction.user.id);
-                        const e = new Discord.MessageEmbed()
+                        const e = new Discord.EmbedBuilder()
                             .setTitle("💣 Mercado Negro — Caixa Ilegal")
-                            .setColor(color)
+                            .setColor(color === "GREY" ? "Grey" : color === "RED" ? "Red" : color === "DARK_RED" ? "DarkRed" : "Green")
                             .setDescription(resultText)
                             .addFields({ name: "Saldo", value: formatMoney(updated2.economia.money || 0), inline: true })
                             .setImage(gif);

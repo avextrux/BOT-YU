@@ -1,4 +1,4 @@
-const Discord = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 const { getRandomGifUrl } = require("../../Utils/giphy");
 
 module.exports = {
@@ -25,8 +25,8 @@ module.exports = {
                 return interaction.editReply({ content: "❌ Não encontrei GIF (ou a key do GIPHY não está configurada)." });
             }
 
-            const embed = new Discord.MessageEmbed()
-                .setColor("BLURPLE")
+            const embed = new EmbedBuilder()
+                .setColor("Blurple")
                 .setTitle("🎞️ GIF")
                 .setDescription(`Busca: **${q}**`)
                 .setImage(gif);

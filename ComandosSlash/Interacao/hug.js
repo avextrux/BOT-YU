@@ -41,10 +41,10 @@ module.exports = {
         const randomGif = await getRandomGifUrl("anime hug", { rating: "pg-13" }).catch(() => null);
         const fallback = fallbacks[Math.floor(Math.random() * fallbacks.length)];
 
-        const embed = new Discord.MessageEmbed()
+        const embed = new Discord.EmbedBuilder()
             .setTitle("🫂 Hug")
             .setDescription(`**${interaction.user}** abraçou **${user}**!${mensagem ? `\n\n💬 ${mensagem.slice(0, 180)}` : ""}`)
-            .setColor("LUMINOUS_VIVID_PINK")
+            .setColor("LuminousVividPink")
             .setImage(randomGif || fallback);
 
         interaction.editReply({ embeds: [embed] });

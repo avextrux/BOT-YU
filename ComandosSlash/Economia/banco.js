@@ -1,4 +1,4 @@
-const Discord = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 const { formatMoney, parseAmountInput, debitWalletIfEnough, creditWallet, errorEmbed } = require("../../Utils/economy");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
 const logger = require("../../Utils/logger");
@@ -11,64 +11,68 @@ function normId(s) {
 module.exports = {
     name: "banco",
     description: "Bancos privados controlados por jogadores",
-    type: "CHAT_INPUT",
+    type: 1, // CHAT_INPUT
     autoDefer: { ephemeral: true },
     options: [
         {
             name: "criar",
             description: "Cria um banco privado",
-            type: "SUB_COMMAND",
+            type: 1, // SUB_COMMAND
             options: [
-                { name: "id", description: "ID curto do banco", type: "STRING", required: true },
-                { name: "nome", description: "Nome do banco", type: "STRING", required: true },
+                { name: "id", description: "ID curto do banco", type: 3, required: true }, // STRING
+                { name: "nome", description: "Nome do banco", type: 3, required: true }, // STRING
             ],
         },
         {
             name: "info",
             description: "Mostra info de um banco",
-            type: "SUB_COMMAND",
-            options: [{ name: "id", description: "ID do banco", type: "STRING", required: true }],
+            type: 1, // SUB_COMMAND
+            options: [{ name: "id", description: "ID do banco", type: 3, required: true }], // STRING
         },
         {
             name: "depositar",
             description: "Deposita no banco privado",
-            type: "SUB_COMMAND",
+            type: 1, // SUB_COMMAND
             options: [
-                { name: "id", description: "ID do banco", type: "STRING", required: true },
-                { name: "quantia", description: "Valor (ou tudo/metade)", type: "STRING", required: true },
+                { name: "id", description: "ID do banco", type: 3, required: true }, // STRING
+                { name: "quantia", description: "Valor (ou tudo/metade)", type: 3, required: true }, // STRING
             ],
         },
         {
             name: "retirar",
             description: "Retira do banco privado",
-            type: "SUB_COMMAND",
+            type: 1, // SUB_COMMAND
             options: [
-                { name: "id", description: "ID do banco", type: "STRING", required: true },
-                { name: "quantia", description: "Valor (ou tudo/metade)", type: "STRING", required: true },
+                { name: "id", description: "ID do banco", type: 3, required: true }, // STRING
+                { name: "quantia", description: "Valor (ou tudo/metade)", type: 3, required: true }, // STRING
             ],
         },
         {
             name: "emprestimo_pedir",
             description: "Pede um empréstimo ao banco",
-            type: "SUB_COMMAND",
+            type: 1, // SUB_COMMAND
             options: [
-                { name: "id", description: "ID do banco", type: "STRING", required: true },
-                { name: "valor", description: "Valor do empréstimo", type: "NUMBER", required: true },
-                { name: "dias", description: "Prazo em dias", type: "INTEGER", required: true },
+                { name: "id", description: "ID do banco", type: 3, required: true }, // STRING
+                { name: "valor", description: "Valor do empréstimo", type: 10, required: true }, // NUMBER
+                { name: "dias", description: "Prazo em dias", type: 4, required: true }, // INTEGER
             ],
         },
         {
             name: "emprestimo_pagar",
             description: "Paga seu empréstimo (total ou parcial)",
-            type: "SUB_COMMAND",
+            type: 1, // SUB_COMMAND
             options: [
-                { name: "id", description: "ID do banco", type: "STRING", required: true },
-                { name: "valor", description: "Valor a pagar", type: "NUMBER", required: true },
+                { name: "id", description: "ID do banco", type: 3, required: true }, // STRING
+                { name: "valor", description: "Valor a pagar", type: 10, required: true }, // NUMBER
             ],
         },
     ],
     run: async (client, interaction) => {
         try {
+            // AutoDefer já é cuidado pelo interactionCreate.js se configurado
+            // Mas para segurança extra em comandos pesados:
+            if (!interaction.deferred && !interaction.replied) await interaction.deferReply({ ephemeral: true }).catch(() => {});
+
             const sub = interaction.options.getSubcommand();
             const guildID = interaction.guildId;
             const now = Date.now();
@@ -95,9 +99,9 @@ module.exports = {
                     loans: [],
                 });
 
-                const embed = new Discord.MessageEmbed()
+                const embed = new EmbedBuilder()
                     .setTitle("🏦 Banco criado")
-                    .setColor("GREEN")
+                    .setColor("Green")
                     .setDescription(`Banco **${bank.name}** criado com ID \`${bank.bankID}\`.`)
                     .addFields(
                         { name: "Dono", value: `${interaction.user}`, inline: true },
@@ -113,9 +117,9 @@ module.exports = {
             if (sub === "info") {
                 const myDep = (bank.deposits?.get ? bank.deposits.get(interaction.user.id) : bank.deposits?.[interaction.user.id]) || 0;
                 const myLoan = (bank.loans || []).find((l) => l.borrowerId === interaction.user.id && l.remaining > 0);
-                const embed = new Discord.MessageEmbed()
+                const embed = new EmbedBuilder()
                     .setTitle(`🏦 ${bank.name}`)
-                    .setColor("BLURPLE")
+                    .setColor("Blurple")
                     .addFields(
                         { name: "ID", value: `\`${bank.bankID}\``, inline: true },
                         { name: "Dono", value: `<@${bank.ownerId}>`, inline: true },
@@ -161,9 +165,9 @@ module.exports = {
                     return replyOrEdit(interaction, { embeds: [errorEmbed("❌ Falha ao depositar. Valor estornado.")], ephemeral: true });
                 }
 
-                const embed = new Discord.MessageEmbed()
+                const embed = new EmbedBuilder()
                     .setTitle("🏦 Depósito no banco privado")
-                    .setColor("GREEN")
+                    .setColor("Green")
                     .setDescription(`Você depositou **${formatMoney(net)}** em **${update.name}**.${fee ? `\nTaxa: **${formatMoney(fee)}**` : ""}`)
                     .addFields({ name: "Reservas do banco", value: formatMoney(update.reserves), inline: true });
                 return replyOrEdit(interaction, { embeds: [embed], ephemeral: true });
@@ -192,9 +196,9 @@ module.exports = {
 
                 await creditWallet(client.userdb, interaction.user.id, amount, "playerbank_withdraw", { bank: id }).catch(() => {});
 
-                const embed = new Discord.MessageEmbed()
+                const embed = new EmbedBuilder()
                     .setTitle("🏦 Saque do banco privado")
-                    .setColor("GREEN")
+                    .setColor("Green")
                     .setDescription(`Você retirou **${formatMoney(amount)}** de **${update.name}**.`)
                     .addFields({ name: "Reservas do banco", value: formatMoney(update.reserves), inline: true });
                 return replyOrEdit(interaction, { embeds: [embed], ephemeral: true });
@@ -225,9 +229,9 @@ module.exports = {
 
                 await creditWallet(client.userdb, interaction.user.id, value, "playerbank_loan", { bank: id, total, dueAt: due }).catch(() => {});
 
-                const embed = new Discord.MessageEmbed()
+                const embed = new EmbedBuilder()
                     .setTitle("📄 Empréstimo aprovado")
-                    .setColor("GOLD")
+                    .setColor("Gold")
                     .setDescription(`Você recebeu **${formatMoney(value)}**.\nTotal a pagar: **${formatMoney(total)}**\nVence: <t:${Math.floor(due / 1000)}:R>`)
                     .addFields({ name: "Banco", value: update.name, inline: true });
                 return replyOrEdit(interaction, { embeds: [embed], ephemeral: true });
@@ -262,9 +266,9 @@ module.exports = {
                 const loanNow = (updated.loans || []).find((l) => l.borrowerId === interaction.user.id && l.createdAt === loan.createdAt);
                 const remaining = loanNow ? loanNow.remaining : 0;
 
-                const embed = new Discord.MessageEmbed()
+                const embed = new EmbedBuilder()
                     .setTitle("✅ Pagamento recebido")
-                    .setColor("GREEN")
+                    .setColor("Green")
                     .setDescription(`Você pagou **${formatMoney(amount)}**. Restante: **${formatMoney(remaining)}**.`)
                     .addFields({ name: "Banco", value: updated.name, inline: true });
                 return replyOrEdit(interaction, { embeds: [embed], ephemeral: true });

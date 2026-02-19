@@ -1,4 +1,4 @@
-const { MessageEmbed, Permissions } = require("discord.js");
+const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
 const logger = require("../../Utils/logger");
 const { replyOrEdit, requireUserPerms, requireBotPerms } = require("../../Utils/commandKit");
 const { statusEmbed } = require("../../Utils/embeds");
@@ -20,9 +20,9 @@ module.exports = {
     ],
     run: async (client, interaction) => {
         try {
-            const uPerm = requireUserPerms(interaction, Permissions.FLAGS.MANAGE_MESSAGES, { message: "Você não tem permissão para usar este comando." });
+            const uPerm = requireUserPerms(interaction, PermissionFlagsBits.ManageMessages, { message: "Você não tem permissão para usar este comando." });
             if (!uPerm.ok) return replyOrEdit(interaction, uPerm.payload);
-            const bPerm = await requireBotPerms(interaction, [Permissions.FLAGS.MANAGE_MESSAGES, Permissions.FLAGS.READ_MESSAGE_HISTORY], { message: "Eu não tenho permissão para limpar mensagens neste canal." });
+            const bPerm = await requireBotPerms(interaction, [PermissionFlagsBits.ManageMessages, PermissionFlagsBits.ReadMessageHistory], { message: "Eu não tenho permissão para limpar mensagens neste canal." });
             if (!bPerm.ok) return replyOrEdit(interaction, bPerm.payload);
 
             const amount = interaction.options.getInteger("quantidade");
@@ -31,8 +31,8 @@ module.exports = {
             const deleted = await interaction.channel.bulkDelete(amount, true);
             const count = deleted?.size ?? amount;
 
-            const embed = new MessageEmbed()
-                .setColor("GREEN")
+            const embed = new EmbedBuilder()
+                .setColor("Green")
                 .setDescription(`🧹 **${count}** mensagens foram limpas com sucesso!`);
 
             return replyOrEdit(interaction, { embeds: [embed], ephemeral: true });

@@ -1,4 +1,4 @@
-const Discord = require("discord.js");
+const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
 const logger = require("../../Utils/logger");
 const { replyOrEdit, requireUserPerms } = require("../../Utils/commandKit");
 const { statusEmbed } = require("../../Utils/embeds");
@@ -18,7 +18,7 @@ module.exports = {
     ],
     run: async (client, interaction) => {
         try {
-            const uPerm = requireUserPerms(interaction, "MANAGE_MESSAGES", { message: "❌ Sem permissão." });
+            const uPerm = requireUserPerms(interaction, PermissionFlagsBits.ManageMessages, { message: "❌ Sem permissão." });
             if (!uPerm.ok) return replyOrEdit(interaction, uPerm.payload);
 
             const titulo = interaction.options.getString("titulo");
@@ -32,29 +32,32 @@ module.exports = {
                 return replyOrEdit(interaction, { embeds: [statusEmbed("error", "Canal inválido para enviar embed.", { title: "Embed" })], ephemeral: true });
             }
 
-            const me = interaction.guild?.me || (interaction.guild ? await interaction.guild.members.fetch(interaction.client.user.id).catch(() => null) : null);
+            const me = interaction.guild?.members?.me || (interaction.guild ? await interaction.guild.members.fetchMe().catch(() => null) : null);
             const perms = canal.permissionsFor(me);
-            if (!perms?.has(["SEND_MESSAGES", "EMBED_LINKS"])) {
+            if (!perms?.has([PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) {
                 return replyOrEdit(interaction, { embeds: [statusEmbed("error", "Eu não tenho permissão para enviar mensagens/embeds nesse canal.", { title: "Embed" })], ephemeral: true });
             }
 
-            let cor = "BLUE";
+            let cor = "Blue";
             if (corInput) {
                 const v = corInput.trim();
                 if (/^#?[0-9a-fA-F]{6}$/.test(v)) {
                     cor = v.startsWith("#") ? v : `#${v}`;
                 } else {
-                    cor = v.toUpperCase();
+                    cor = v.toUpperCase(); // Colors like "RED" still work if uppercase strings, but v14 prefers PascalCase enum or hex
+                    // Mapping common ones just in case
+                    const map = { VERMELHO: "Red", AZUL: "Blue", VERDE: "Green", AMARELO: "Yellow", LARANJA: "Orange", ROXO: "Purple", BRANCO: "White", PRETO: "Black" };
+                    if (map[cor]) cor = map[cor];
                 }
             }
 
-            const embed = new Discord.MessageEmbed()
+            const embed = new EmbedBuilder()
                 .setTitle(titulo)
                 .setDescription(descricao);
             try {
                 embed.setColor(cor);
             } catch {
-                embed.setColor("BLUE");
+                embed.setColor("Blue");
             }
 
             if (imagem) embed.setImage(imagem);

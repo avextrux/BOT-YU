@@ -1,7 +1,7 @@
+const { MessageFlags, PermissionsBitField } = require("discord.js");
 const { safe } = require("./interactions");
 const { statusEmbed } = require("./embeds");
 const logger = require("./logger");
-const Discord = require("./djs");
 
 function hasReplied(interaction) {
     return Boolean(interaction?.deferred || interaction?.replied);
@@ -16,21 +16,21 @@ function stripEphemeral(payload) {
 
 function normalizeReplyPayload(payload) {
     if (!payload || typeof payload !== "object") return payload;
-    if (!("ephemeral" in payload)) return payload;
-    const ephemeral = Boolean(payload.ephemeral);
-    const out = stripEphemeral(payload);
-    if (!ephemeral) return out;
-    const flag = Discord.MessageFlags?.Ephemeral;
-    if (flag === undefined) return out;
-    const existing = out.flags;
-    const flags = existing === undefined ? flag : (Array.isArray(existing) ? existing.concat([flag]) : existing | flag);
-    return { ...out, flags };
+    // v14 handles ephemeral naturally, but we can ensure flags are set if needed
+    if (payload.ephemeral) {
+        return { ...payload, flags: MessageFlags.Ephemeral };
+    }
+    return payload;
 }
 
 async function replyOrEdit(interaction, payload) {
     if (!interaction) return null;
-    if (hasReplied(interaction)) return safe(interaction.editReply(stripEphemeral(payload)));
-    return safe(interaction.reply(normalizeReplyPayload(payload)));
+    if (hasReplied(interaction)) {
+        // Edit cannot change ephemeral state, so strip it to be safe
+        return safe(interaction.editReply(stripEphemeral(payload)));
+    }
+    // Reply can set ephemeral
+    return safe(interaction.reply(payload));
 }
 
 async function replyOrEditFetch(interaction, payload) {
@@ -41,11 +41,7 @@ async function replyOrEditFetch(interaction, payload) {
 
 async function ensureDeferred(interaction, { ephemeral = false } = {}) {
     if (!interaction || hasReplied(interaction)) return null;
-    const flag = Discord.MessageFlags?.Ephemeral;
-    const isEphemeral = Boolean(ephemeral);
-    if (isEphemeral && flag !== undefined) return safe(interaction.deferReply({ flags: flag }));
-    if (isEphemeral) return safe(interaction.deferReply({ ephemeral: true }));
-    return safe(interaction.deferReply());
+    return safe(interaction.deferReply({ ephemeral }));
 }
 
 function requireUserPerms(interaction, perms, { message } = {}) {
@@ -60,10 +56,14 @@ function requireUserPerms(interaction, perms, { message } = {}) {
 
 async function requireBotPerms(interaction, perms, { message, channel } = {}) {
     const list = Array.isArray(perms) ? perms : [perms];
-    const me = interaction?.guild?.me || (interaction?.guild ? await interaction.guild.members.fetch(interaction.client.user.id).catch(() => null) : null);
+    const me = interaction?.guild?.members?.me || (interaction?.guild ? await interaction.guild.members.fetchMe().catch(() => null) : null);
+    
+    if (!me) return { ok: false, payload: { content: "Erro ao verificar permissões do bot.", ephemeral: true } };
+
     const ch = channel || interaction?.channel;
-    const channelPerms = me && ch?.permissionsFor ? ch.permissionsFor(me) : null;
-    const ok = channelPerms ? channelPerms.has(list) : me?.permissions?.has(list);
+    const channelPerms = ch?.permissionsFor ? ch.permissionsFor(me) : null;
+    const ok = channelPerms ? channelPerms.has(list) : me.permissions.has(list);
+
     if (ok) return { ok: true };
     return {
         ok: false,

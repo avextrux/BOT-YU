@@ -1,4 +1,4 @@
-const Discord = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 const { formatMoney } = require("../../Utils/economy");
 const logger = require("../../Utils/logger");
 const { replyOrEdit } = require("../../Utils/commandKit");
@@ -6,7 +6,7 @@ const { replyOrEdit } = require("../../Utils/commandKit");
 module.exports = {
     name: "loja",
     description: "Veja os itens disponíveis para compra",
-    type: "CHAT_INPUT",
+    type: 1, // CHAT_INPUT
     run: async (client, interaction) => {
         try {
             const guildEco = client.guildEconomydb?.getOrCreate ? await client.guildEconomydb.getOrCreate(interaction.guild.id) : null;
@@ -17,17 +17,17 @@ module.exports = {
 
             if (!itens || itens.length === 0) {
                 return interaction.reply({ 
-                    embeds: [new Discord.MessageEmbed()
+                    embeds: [new EmbedBuilder()
                         .setTitle("🏪 Loja Vazia")
-                        .setColor("YELLOW")
+                        .setColor("Yellow")
                         .setDescription("Ainda não há itens na loja deste servidor.\nPeça para um moderador adicionar itens usando `/loja-admin criar`.")
                     ]
                 });
             }
 
-            const embed = new Discord.MessageEmbed()
+            const embed = new EmbedBuilder()
                 .setTitle(`🏪 Loja de ${interaction.guild.name}`)
-                .setColor("GOLD")
+                .setColor("Gold")
                 .setDescription("Use `/comprar [id]` para adquirir um item.")
                 .setThumbnail(interaction.guild.iconURL({ dynamic: true }));
 

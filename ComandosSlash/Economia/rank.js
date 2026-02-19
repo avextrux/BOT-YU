@@ -1,4 +1,4 @@
-const Discord = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 const { formatMoney } = require("../../Utils/economy");
 
 module.exports = {
@@ -29,9 +29,9 @@ module.exports = {
              })
              .join("\n> ");
 
-         interaction.editReply({embeds: [new Discord.MessageEmbed()
+         interaction.editReply({embeds: [new EmbedBuilder()
          .setTitle(`📊 • Rank dos mais ricos da Economia!`)
-         .setColor("a5d7ff")
+         .setColor("Blue")
          .setDescription(rankList ? `> ${rankList}` : "Ninguém no rank ainda.")
          .setTimestamp()
               ]})

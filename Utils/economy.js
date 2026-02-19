@@ -1,4 +1,4 @@
-const Discord = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 
 function formatMoney(amount) {
   const n = Math.floor(Number(amount) || 0);
@@ -200,11 +200,11 @@ async function debitDirtyMoneyIfEnough(model, userId, amount, type, meta, { sess
 }
 
 function errorEmbed(text) {
-  return new Discord.MessageEmbed().setColor("RED").setDescription(text);
+  return new EmbedBuilder().setColor("Red").setDescription(text);
 }
 
 function successEmbed(title, text) {
-  return new Discord.MessageEmbed().setColor("GREEN").setTitle(title).setDescription(text);
+  return new EmbedBuilder().setColor("Green").setTitle(title).setDescription(text);
 }
 
 module.exports = {

@@ -1,4 +1,4 @@
-const Discord = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 const { formatMoney } = require("../../Utils/economy");
 
 function typeLabel(t) {
@@ -63,9 +63,9 @@ module.exports = {
                 return `\`[${hh}:${mm}]\` **${typeLabel(it.type)}** • 💵 ${wallet} • 🏦 ${bank}`;
             });
 
-            const embed = new Discord.MessageEmbed()
+            const embed = new EmbedBuilder()
                 .setTitle("🧾 Extrato")
-                .setColor("BLURPLE")
+                .setColor("Blurple")
                 .setDescription(lines.length ? lines.join("\n") : "Você ainda não tem movimentações.")
                 .addFields(
                     { name: "💵 Carteira", value: formatMoney(money), inline: true },

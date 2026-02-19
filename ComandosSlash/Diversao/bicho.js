@@ -63,7 +63,7 @@ module.exports = {
             const ganhou = resultadoNumero === bichoEscolhido;
             const premio = aposta * 18; // Paga 18x a aposta
 
-            const embed = new Discord.MessageEmbed()
+            const embed = new Discord.EmbedBuilder()
                 .setTitle("🎰 Jogo do Bicho")
                 .addFields(
                     { name: "Sua Aposta", value: `R$ ${aposta} no **${bichos[bichoEscolhido - 1]}**`, inline: true },
@@ -72,12 +72,12 @@ module.exports = {
 
             if (ganhou) {
                 userdb.economia.money += (premio - aposta); // Adiciona lucro
-                embed.setColor("GREEN")
+                embed.setColor("Green")
                 embed.setDescription(`🎉 **DEU NO POSTE!** Você ganhou **R$ ${premio}**!`);
                 embed.setThumbnail("https://i.imgur.com/4J5h6X8.png"); // Imagem de dinheiro
             } else {
                 userdb.economia.money -= aposta;
-                embed.setColor("RED")
+                embed.setColor("Red")
                 embed.setDescription(`😢 Não foi dessa vez. Tente novamente!`);
             }
 

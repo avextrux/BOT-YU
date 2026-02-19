@@ -1,16 +1,4 @@
-const Module = require("module");
-
-const originalLoad = Module._load;
-const djsPath = require.resolve("./Utils/djs");
-Module._load = function (request, parent, isMain) {
-    const parentFile = String(parent?.filename || "").replace(/\\/g, "/");
-    if (request === "discord.js" && !parentFile.endsWith("/Utils/djs.js")) {
-        return originalLoad.call(this, djsPath, parent, isMain);
-    }
-    return originalLoad.call(this, request, parent, isMain);
-};
-
-const Discord = require("./Utils/djs");
+const Discord = require("discord.js");
 const mongo = require("mongoose");
 const { getMongoUrl, getBotToken } = require("./Utils/config");
 const logger = require("./Utils/logger");
@@ -26,22 +14,18 @@ const client = new Discord.Client({
     intents,
     partials: [Discord.Partials.Channel],
     allowedMentions: { parse: [], repliedUser: false },
-    makeCache: Discord.Options?.cacheWithLimits
-        ? Discord.Options.cacheWithLimits({
-              MessageManager: 0,
-              GuildMemberManager: 0,
-              PresenceManager: 0,
-              ReactionManager: 0,
-              ThreadManager: 0,
-              ThreadMemberManager: 0,
-          })
-        : undefined,
-    sweepers: Discord.Sweepers?.filterByLifetime
-        ? {
-              messages: { interval: 5 * 60, filter: Discord.Sweepers.filterByLifetime({ lifetime: 15 * 60 }) },
-              users: { interval: 10 * 60, filter: Discord.Sweepers.filterByLifetime({ lifetime: 60 * 60 }) },
-          }
-        : undefined,
+    makeCache: Discord.Options.cacheWithLimits({
+        MessageManager: 0,
+        GuildMemberManager: 0,
+        PresenceManager: 0,
+        ReactionManager: 0,
+        ThreadManager: 0,
+        ThreadMemberManager: 0,
+    }),
+    sweepers: {
+        messages: { interval: 5 * 60, filter: Discord.Sweepers.filterByLifetime({ lifetime: 15 * 60 }) },
+        users: { interval: 10 * 60, filter: Discord.Sweepers.filterByLifetime({ lifetime: 60 * 60 }) },
+    },
 });
 
 module.exports = client;
@@ -94,7 +78,7 @@ process.on('unhandledRejection', (reason, p) => {
     const code = reason?.code || reason?.error?.code;
     if (code === 10062 || code === 40060) return;
     logger.error("[ANTI-CRASH] Unhandled Rejection/Catch", { reason: String(reason?.message || reason), code });
-    logger.error("[ANTI-CRASH] Promise", { promise: String(p) });
+    // logger.error("[ANTI-CRASH] Promise", { promise: String(p) }); // Verboso demais
 });
 
 process.on('uncaughtException', (err, origin) => {

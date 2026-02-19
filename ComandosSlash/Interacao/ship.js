@@ -30,22 +30,22 @@ module.exports = {
         
         if (love < 20) {
             desc = "💔 Sem chance...";
-            cor = "BLACK";
+            cor = "Black";
         } else if (love < 50) {
             desc = "😐 Talvez na friendzone.";
-            cor = "RED";
+            cor = "Red";
         } else if (love < 80) {
             desc = "❤️ Há esperança!";
-            cor = "ORANGE";
+            cor = "Orange";
         } else {
             desc = "💖 Casal perfeito! Casem logo!";
-            cor = "LUMINOUS_VIVID_PINK";
+            cor = "LuminousVividPink";
         }
 
         // Barra de progresso
         const progress = "🟩".repeat(Math.floor(love / 10)) + "⬛".repeat(10 - Math.floor(love / 10));
 
-        const embed = new Discord.MessageEmbed()
+        const embed = new Discord.EmbedBuilder()
             .setTitle("💘 Máquina do Amor")
             .setDescription(`**${user1}** + **${user2}** = **${love}%**\n\n${progress}\n\n${desc}`)
             .setColor(cor);

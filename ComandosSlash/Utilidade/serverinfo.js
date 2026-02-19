@@ -1,4 +1,4 @@
-const { MessageEmbed } = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 const moment = require("moment");
 moment.locale("pt-br");
 const logger = require("../../Utils/logger");
@@ -15,10 +15,10 @@ module.exports = {
             const { guild } = interaction;
             const owner = await guild.fetchOwner();
 
-            const embed = new MessageEmbed()
+            const embed = new EmbedBuilder()
                 .setTitle(`🏰 Informações de ${guild.name}`)
                 .setThumbnail(guild.iconURL({ dynamic: true }))
-                .setColor("BLUE")
+                .setColor("Blue")
                 .addFields(
                     { name: "👑 Dono", value: `${owner.user.tag} (${owner.id})`, inline: true },
                     { name: "🆔 ID do Servidor", value: guild.id, inline: true },

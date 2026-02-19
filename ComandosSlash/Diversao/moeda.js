@@ -1,4 +1,4 @@
-const Discord = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
 const logger = require("../../Utils/logger");
 const { replyOrEdit } = require("../../Utils/commandKit");
@@ -6,13 +6,13 @@ const { replyOrEdit } = require("../../Utils/commandKit");
 module.exports = {
     name: "moeda",
     description: "Jogue cara ou coroa e aposte seu dinheiro!",
-    type: 'CHAT_INPUT',
+    type: 1, // CHAT_INPUT
     autoDefer: { ephemeral: true },
     options: [
         {
             name: "escolha",
             description: "Escolha Cara ou Coroa",
-            type: "STRING",
+            type: 3, // STRING
             required: true,
             choices: [
                 { name: "Cara", value: "cara" },
@@ -22,12 +22,14 @@ module.exports = {
         {
             name: "aposta",
             description: "Valor para apostar (opcional)",
-            type: "NUMBER",
+            type: 10, // NUMBER
             required: false
         }
     ],
     run: async (client, interaction) => {
         try {
+            await interaction.deferReply({ ephemeral: true }).catch(() => {});
+
             const escolha = interaction.options.getString("escolha");
             const aposta = Math.floor(interaction.options.getNumber("aposta") || 0);
 
@@ -41,7 +43,7 @@ module.exports = {
                 
                 if (userdb.economia.money < aposta) {
                     return replyOrEdit(interaction, { 
-                        embeds: [new Discord.MessageEmbed().setColor("RED").setDescription(`❌ Você não tem **R$ ${aposta}** na carteira para apostar.`)], 
+                        embeds: [new EmbedBuilder().setColor("Red").setDescription(`❌ Você não tem **R$ ${aposta}** na carteira para apostar.`)], 
                         ephemeral: true 
                     });
                 }
@@ -50,7 +52,7 @@ module.exports = {
             const resultado = Math.random() < 0.5 ? "cara" : "coroa";
             const ganhou = escolha === resultado;
 
-            const embed = new Discord.MessageEmbed()
+            const embed = new EmbedBuilder()
                 .setTitle("🪙 Cara ou Coroa")
                 .setThumbnail(resultado === "cara" ? "https://i.imgur.com/8QeJ7Hk.png" : "https://i.imgur.com/Hu3w8Wp.png") // Imagens genéricas de moeda
                 .addFields(
@@ -61,16 +63,16 @@ module.exports = {
             if (aposta > 0) {
                 if (ganhou) {
                     userdb.economia.money += aposta;
-                    embed.setColor("GREEN");
+                    embed.setColor("Green");
                     embed.setDescription(`🎉 **Parabéns!** Você ganhou **R$ ${aposta}**!`);
                 } else {
                     userdb.economia.money -= aposta;
-                    embed.setColor("RED");
+                    embed.setColor("Red");
                     embed.setDescription(`😢 **Que pena!** Você perdeu **R$ ${aposta}**.`);
                 }
                 await userdb.save();
             } else {
-                embed.setColor(ganhou ? "GREEN" : "RED");
+                embed.setColor(ganhou ? "Green" : "Red");
                 embed.setDescription(ganhou ? "🎉 Você acertou!" : "😢 Você errou!");
                 embed.setFooter({ text: "Use /moeda [escolha] [aposta] para valer dinheiro!" });
             }

@@ -1,4 +1,4 @@
-const Discord = require("../../Utils/djs");
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require("discord.js");
 const { getRandomGifUrl } = require("../../Utils/giphy");
 
 module.exports = {
@@ -28,14 +28,14 @@ module.exports = {
             // Validações
             if (interaction.user.id === user.id) {
                 return interaction.reply({ 
-                    embeds: [new Discord.MessageEmbed().setColor("RED").setDescription("❌ Você não pode se casar consigo mesmo (narcisismo tem limite!).")], 
+                    embeds: [new EmbedBuilder().setColor("Red").setDescription("❌ Você não pode se casar consigo mesmo (narcisismo tem limite!).")], 
                     ephemeral: true 
                 });
             }
 
             if (user.bot) {
                 return interaction.reply({ 
-                    embeds: [new Discord.MessageEmbed().setColor("RED").setDescription("❌ Eu sei que bots são atraentes, mas você não pode se casar com um.")], 
+                    embeds: [new EmbedBuilder().setColor("Red").setDescription("❌ Eu sei que bots são atraentes, mas você não pode se casar com um.")], 
                     ephemeral: true 
                 });
             }
@@ -49,14 +49,14 @@ module.exports = {
                 const conjuge = await client.users.fetch(authorDb.economia.marry.com).catch(() => null);
                 const nomeConjuge = conjuge ? conjuge.tag : "alguém";
                 return interaction.reply({ 
-                    embeds: [new Discord.MessageEmbed().setColor("RED").setDescription(`❌ Você já é casado(a) com **${nomeConjuge}**! Divorcie-se primeiro.`)], 
+                    embeds: [new EmbedBuilder().setColor("Red").setDescription(`❌ Você já é casado(a) com **${nomeConjuge}**! Divorcie-se primeiro.`)], 
                     ephemeral: true 
                 });
             }
 
             if (targetDb.economia.marry && targetDb.economia.marry.casado) {
                 return interaction.reply({ 
-                    embeds: [new Discord.MessageEmbed().setColor("RED").setDescription(`❌ **${user.tag}** já é casado(a). Respeite o relacionamento alheio!`)], 
+                    embeds: [new EmbedBuilder().setColor("Red").setDescription(`❌ **${user.tag}** já é casado(a). Respeite o relacionamento alheio!`)], 
                     ephemeral: true 
                 });
             }
@@ -73,15 +73,15 @@ module.exports = {
             const fallbackWeddingGif = "https://media.giphy.com/media/26ufcVAp3AiJJsrmw/giphy.gif";
 
             // Pedido de Casamento
-            const row = new Discord.ActionRowBuilder()
+            const row = new ActionRowBuilder()
                 .addComponents(
-                    new Discord.ButtonBuilder().setCustomId('accept_marry').setLabel('Aceitar').setStyle('SUCCESS').setEmoji('💍'),
-                    new Discord.ButtonBuilder().setCustomId('deny_marry').setLabel('Recusar').setStyle('DANGER').setEmoji('💔')
+                    new ButtonBuilder().setCustomId('accept_marry').setLabel('Aceitar').setStyle(ButtonStyle.Success).setEmoji('💍'),
+                    new ButtonBuilder().setCustomId('deny_marry').setLabel('Recusar').setStyle(ButtonStyle.Danger).setEmoji('💔')
                 );
 
-            const embed = new Discord.MessageEmbed()
+            const embed = new EmbedBuilder()
                 .setTitle("💍 Pedido de Casamento")
-                .setColor("FUCHSIA")
+                .setColor("Fuchsia")
                 .setDescription(`**${user}**, **${interaction.user}** está pedindo a sua mão em casamento!\n\nVocê aceita viver feliz para sempre (ou até o divórcio)?`)
                 .setFooter({ text: "Responda em 60 segundos." });
 
@@ -91,7 +91,7 @@ module.exports = {
             const msg = await interaction.fetchReply();
 
             const collector = msg.createMessageComponentCollector({ 
-                componentType: Discord.ComponentType.Button,
+                componentType: ComponentType.Button,
                 filter: i => i.user.id === user.id, 
                 time: 60000, 
                 max: 1 
@@ -109,9 +109,9 @@ module.exports = {
                     targetDb.economia.marry = { casado: true, com: interaction.user.id, since };
                     await targetDb.save();
 
-                    const successEmbed = new Discord.MessageEmbed()
+                    const successEmbed = new EmbedBuilder()
                         .setTitle("💒 Casados! 🎉")
-                        .setColor("LUMINOUS_VIVID_PINK")
+                        .setColor("LuminousVividPink")
                         .setDescription(`Parabéns! **${interaction.user}** e **${user}** agora estão oficialmente casados! ❤️`)
                         .setTimestamp();
 
@@ -120,9 +120,9 @@ module.exports = {
                     await interaction.editReply({ embeds: [successEmbed], components: [] });
                 } else {
                     await i.deferUpdate();
-                    const sadEmbed = new Discord.MessageEmbed()
+                    const sadEmbed = new EmbedBuilder()
                         .setTitle("💔 Pedido Recusado")
-                        .setColor("DARK_RED")
+                        .setColor("DarkRed")
                         .setDescription(`**${user}** recusou o pedido de **${interaction.user}**... Soldado abatido.`)
                         .setTimestamp();
                     
@@ -134,7 +134,7 @@ module.exports = {
                 client._pendingMarry.delete(interaction.user.id);
                 client._pendingMarry.delete(user.id);
                 if (collected.size === 0) {
-                    interaction.editReply({ embeds: [new Discord.MessageEmbed().setColor("RED").setDescription("⏰ O pedido expirou. Talvez na próxima.")], components: [] }).catch(() => {});
+                    interaction.editReply({ embeds: [new EmbedBuilder().setColor("Red").setDescription("⏰ O pedido expirou. Talvez na próxima.")], components: [] }).catch(() => {});
                 }
             });
 

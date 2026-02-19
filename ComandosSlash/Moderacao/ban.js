@@ -1,4 +1,4 @@
-const { MessageEmbed, Permissions } = require("discord.js");
+const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
 const logger = require("../../Utils/logger");
 const { replyOrEdit, requireUserPerms, requireBotPerms } = require("../../Utils/commandKit");
 const { statusEmbed } = require("../../Utils/embeds");
@@ -24,9 +24,9 @@ module.exports = {
     ],
     run: async (client, interaction) => {
         try {
-            const uPerm = requireUserPerms(interaction, Permissions.FLAGS.BAN_MEMBERS, { message: "Você não tem permissão para banir membros." });
+            const uPerm = requireUserPerms(interaction, PermissionFlagsBits.BanMembers, { message: "Você não tem permissão para banir membros." });
             if (!uPerm.ok) return replyOrEdit(interaction, uPerm.payload);
-            const bPerm = await requireBotPerms(interaction, Permissions.FLAGS.BAN_MEMBERS, { message: "Eu não tenho permissão para banir membros." });
+            const bPerm = await requireBotPerms(interaction, PermissionFlagsBits.BanMembers, { message: "Eu não tenho permissão para banir membros." });
             if (!bPerm.ok) return replyOrEdit(interaction, bPerm.payload);
 
             const user = interaction.options.getUser("usuario");
@@ -51,9 +51,9 @@ module.exports = {
 
             await interaction.guild.members.ban(user.id, { reason: reason });
 
-            const embed = new MessageEmbed()
+            const embed = new EmbedBuilder()
                 .setTitle("🔨 Usuário Banido")
-                .setColor("RED")
+                .setColor("Red")
                 .addFields(
                     { name: "Usuário", value: `${user.tag} (${user.id})`, inline: true },
                     { name: "Moderador", value: interaction.user.tag, inline: true },

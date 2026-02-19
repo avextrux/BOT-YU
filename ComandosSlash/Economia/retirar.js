@@ -1,4 +1,4 @@
-const Discord = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 const { getRandomGifUrl } = require("../../Utils/giphy");
 const { formatMoney, parseAmountInput, transferBankToWallet, errorEmbed } = require("../../Utils/economy");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
@@ -57,9 +57,9 @@ module.exports = {
                 (await getRandomGifUrl("atm cash", { rating: "pg-13" }).catch(() => null)) ||
                 "https://media.giphy.com/media/3o6gDWzmAzrpi5DQU8/giphy.gif";
 
-            const embed = new Discord.MessageEmbed()
+            const embed = new EmbedBuilder()
                 .setTitle(`💸 Saque Realizado`)
-                .setColor("GREEN")
+                .setColor("Green")
                 .setDescription(`✅ Você sacou **${formatMoney(valorRetirar)}** do banco.`)
                 .addFields(
                     { name: "💵 Carteira", value: formatMoney(userdb.economia.money), inline: true },

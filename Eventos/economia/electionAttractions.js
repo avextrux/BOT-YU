@@ -1,5 +1,5 @@
 const client = require("../../index");
-const Discord = require("../../Utils/djs");
+const { EmbedBuilder, Events } = require("discord.js");
 
 async function trySendToChannel(channelId, payload) {
     if (!channelId) return false;
@@ -48,9 +48,9 @@ async function tick() {
             eco.election.voteShop.boostMultiplier = mult;
             await eco.save().catch(() => {});
 
-            const embed = new Discord.MessageEmbed()
+            const embed = new EmbedBuilder()
                 .setTitle("🎪 Atração Aleatória: Promoção de Urna!")
-                .setColor("GOLD")
+                .setColor("Gold")
                 .setDescription(
                     [
                         `Por **${minutes} minutos**, a compra de votos está com desconto!`,
@@ -69,7 +69,7 @@ async function tick() {
     }
 }
 
-client.on(Discord.Events?.ClientReady || "ready", () => {
+client.on(Events.ClientReady, () => {
     setInterval(() => {
         tick();
     }, 5 * 60 * 1000);

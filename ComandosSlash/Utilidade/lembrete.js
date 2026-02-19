@@ -68,9 +68,9 @@ module.exports = {
 
             const id = `${interaction.user.id}:${Date.now()}`;
 
-            const embed = new Discord.MessageEmbed()
+            const embed = new Discord.EmbedBuilder()
                 .setTitle("⏰ Lembrete criado")
-                .setColor("BLURPLE")
+                .setColor("Blurple")
                 .addFields(
                     { name: "Em", value: `${minutes} minuto(s)`, inline: true },
                     { name: "Mensagem", value: message.slice(0, 1024), inline: false }
@@ -86,9 +86,9 @@ module.exports = {
                     decCount(store, existing.userId);
                 }
                 const ping = `<@${interaction.user.id}>`;
-                const remindEmbed = new Discord.MessageEmbed()
+                const remindEmbed = new Discord.EmbedBuilder()
                     .setTitle("⏰ Lembrete")
-                    .setColor("GREEN")
+                    .setColor("Green")
                     .setDescription(message);
 
                 const ch = interaction.channel;

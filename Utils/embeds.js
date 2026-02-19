@@ -1,13 +1,13 @@
-const Discord = require("./djs");
+const { EmbedBuilder } = require("discord.js");
 
 const WDA_FOOTER_TEXT = "WDA • Direitos reservados";
 
 function colorFor(kind) {
     const k = String(kind || "").toLowerCase();
-    if (k === "error") return "RED";
-    if (k === "warn") return "ORANGE";
-    if (k === "success") return "GREEN";
-    return "BLURPLE";
+    if (k === "error") return "Red";
+    if (k === "warn") return "Orange";
+    if (k === "success") return "Green";
+    return "Blurple";
 }
 
 function applyWDAFooter(embed) {
@@ -17,7 +17,7 @@ function applyWDAFooter(embed) {
 }
 
 function simpleEmbed({ title, description, color }) {
-    const e = new Discord.MessageEmbed().setColor(color || "BLURPLE");
+    const e = new EmbedBuilder().setColor(color || "Blurple");
     if (title) e.setTitle(String(title).slice(0, 256));
     if (description) e.setDescription(String(description).slice(0, 4096));
     return e;

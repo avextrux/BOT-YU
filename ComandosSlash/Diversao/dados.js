@@ -46,9 +46,9 @@ module.exports = {
 
             const resultado = Math.floor(Math.random() * lados) + 1;
 
-            const embed = new Discord.MessageEmbed()
+            const embed = new Discord.EmbedBuilder()
                 .setTitle("🎲 Dados")
-                .setColor("BLURPLE")
+                .setColor("Blurple")
                 .setDescription(`Você rolou **d${lados}** e tirou **${resultado}**.`);
 
             if (aposta > 0) {
@@ -57,11 +57,11 @@ module.exports = {
                 if (ganhou) {
                     const premio = aposta * multiplicador;
                     userdb.economia.money += (premio - aposta);
-                    embed.setColor("GREEN");
+                    embed.setColor("Green");
                     embed.addFields({ name: "Resultado", value: `🎉 Saiu **${resultado}**! Você ganhou **R$ ${premio}** (${multiplicador}x).` });
                 } else {
                     userdb.economia.money -= aposta;
-                    embed.setColor("RED");
+                    embed.setColor("Red");
                     embed.addFields({ name: "Resultado", value: `💸 Você perdeu **R$ ${aposta}**. Para ganhar, precisa tirar **${lados}**.` });
                 }
                 await userdb.save();

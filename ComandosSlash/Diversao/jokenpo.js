@@ -7,17 +7,17 @@ module.exports = {
     type: 'CHAT_INPUT',
     run: async (client, interaction) => {
         try {
-            const embed = new Discord.MessageEmbed()
+            const embed = new Discord.EmbedBuilder()
                 .setTitle("✂️ Jokenpô")
-                .setColor("BLUE")
+                .setColor("Blue")
                 .setDescription("Escolha sua jogada abaixo:")
                 .setFooter({ text: "Você tem 30 segundos para escolher." });
 
             const row = new Discord.ActionRowBuilder()
                 .addComponents(
-                    new Discord.ButtonBuilder().setCustomId('pedra').setLabel('Pedra').setStyle('SECONDARY').setEmoji('🪨'),
-                    new Discord.ButtonBuilder().setCustomId('papel').setLabel('Papel').setStyle('SECONDARY').setEmoji('📄'),
-                    new Discord.ButtonBuilder().setCustomId('tesoura').setLabel('Tesoura').setStyle('SECONDARY').setEmoji('✂️')
+                    new Discord.ButtonBuilder().setCustomId('pedra').setLabel('Pedra').setStyle(Discord.ButtonStyle.Secondary).setEmoji('🪨'),
+                    new Discord.ButtonBuilder().setCustomId('papel').setLabel('Papel').setStyle(Discord.ButtonStyle.Secondary).setEmoji('📄'),
+                    new Discord.ButtonBuilder().setCustomId('tesoura').setLabel('Tesoura').setStyle(Discord.ButtonStyle.Secondary).setEmoji('✂️')
                 );
 
             const msg = await replyOrEditFetch(interaction, { embeds: [embed], components: [row] });
@@ -40,20 +40,20 @@ module.exports = {
 
                 if (jogadaUsuario === jogadaBot) {
                     resultado = "Empate! 🤝";
-                    cor = "YELLOW";
+                    cor = "Yellow";
                 } else if (
                     (jogadaUsuario === 'pedra' && jogadaBot === 'tesoura') ||
                     (jogadaUsuario === 'papel' && jogadaBot === 'pedra') ||
                     (jogadaUsuario === 'tesoura' && jogadaBot === 'papel')
                 ) {
                     resultado = "Você ganhou! 🎉";
-                    cor = "GREEN";
+                    cor = "Green";
                 } else {
                     resultado = "Eu ganhei! 🤖";
-                    cor = "RED";
+                    cor = "Red";
                 }
 
-                const resultEmbed = new Discord.MessageEmbed()
+                const resultEmbed = new Discord.EmbedBuilder()
                     .setTitle("✂️ Jokenpô - Resultado")
                     .setColor(cor)
                     .addFields(
@@ -68,7 +68,7 @@ module.exports = {
 
             collector.on('end', collected => {
                 if (collected.size === 0) {
-                    interaction.editReply({ embeds: [new Discord.MessageEmbed().setColor("RED").setDescription("⏰ Tempo esgotado.")], components: [] }).catch(() => {});
+                    interaction.editReply({ embeds: [new Discord.EmbedBuilder().setColor("Red").setDescription("⏰ Tempo esgotado.")], components: [] }).catch(() => {});
                 }
             });
 

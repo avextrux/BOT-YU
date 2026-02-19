@@ -1,4 +1,4 @@
-const Discord = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 const { getRandomGifUrl } = require("../../Utils/giphy");
 const { formatMoney, creditWallet } = require("../../Utils/economy");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
@@ -62,9 +62,9 @@ module.exports = {
                 (await getRandomGifUrl(gifQuery, { rating: "pg-13" }).catch(() => null)) ||
                 "https://media.giphy.com/media/26BRBupaJvXQy1m7S/giphy.gif";
 
-            const embed = new Discord.MessageEmbed()
+            const embed = new EmbedBuilder()
                 .setTitle("🕵️ Investigação")
-                .setColor(found ? "GREEN" : "GREY")
+                .setColor(found ? "Green" : "Grey")
                 .setImage(gif);
 
             if (!found) {
