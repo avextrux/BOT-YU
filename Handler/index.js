@@ -99,7 +99,7 @@ module.exports = async (client) => {
         logger.error("Falha ao ler diretório ComandosSlash", { error: String(e?.message || e) });
     }
 
-    client.on(Discord.Events?.ClientReady || "ready", async () => {
+    client.on(Events.ClientReady, async () => {
         try {
             const scope = String(process.env.SLASH_REGISTER_SCOPE || "guild").toLowerCase();
             logger.info("Iniciando registro de comandos", { count: SlashsArray.length, scope });
