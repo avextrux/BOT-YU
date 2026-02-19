@@ -132,9 +132,9 @@ module.exports = {
                             .join("\n")
                         : "-";
 
-                const embed = new Discord.MessageEmbed()
+                const embed = new Discord.EmbedBuilder()
                     .setTitle("🏦 Banco Central do Servidor")
-                    .setColor("BLURPLE")
+                    .setColor("Blurple")
                     .addFields(
                         { name: "Dono", value: `<@${ownerId}>`, inline: true },
                         { name: "Tesouro", value: eco.centralBank.infiniteFunds ? "∞" : formatMoney(eco.policy.treasury || 0), inline: true },
@@ -232,9 +232,9 @@ module.exports = {
                     { guildId: interaction.guildId, by: interaction.user.id, motivo: motivo || null }
                 );
 
-                const embed = new Discord.MessageEmbed()
+                const embed = new Discord.EmbedBuilder()
                     .setTitle("🏦 Pagamento do Banco Central")
-                    .setColor("GREEN")
+                    .setColor("Green")
                     .addFields(
                         { name: "Recebedor", value: `${target}`, inline: true },
                         { name: "Valor", value: formatMoney(amount), inline: true },

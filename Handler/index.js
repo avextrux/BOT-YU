@@ -1,6 +1,6 @@
 const fs = require("fs");
 const logger = require("../Utils/logger");
-const Discord = require("../Utils/djs");
+const { Events } = require("discord.js");
 
 function pick(obj, keys) {
     const out = {};

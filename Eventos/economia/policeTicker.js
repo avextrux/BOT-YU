@@ -1,6 +1,6 @@
 const client = require("../../index");
 const { DISTRICTS } = require("../../Utils/blackMarketEngine");
-const Discord = require("../../Utils/djs");
+const { Events } = require("discord.js");
 
 function pickDistrict() {
     return DISTRICTS[Math.floor(Math.random() * DISTRICTS.length)].id;
@@ -39,7 +39,7 @@ async function tick() {
     }
 }
 
-client.on(Discord.Events?.ClientReady || "ready", () => {
+client.on(Events.ClientReady, () => {
     setInterval(() => {
         tick();
     }, 5 * 60 * 1000);

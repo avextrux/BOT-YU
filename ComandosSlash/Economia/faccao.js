@@ -1,4 +1,4 @@
-const Discord = require("../../Utils/djs");
+const Discord = require("discord.js");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
 const { formatMoney, debitWalletIfEnough, creditWallet, errorEmbed } = require("../../Utils/economy");
 const { DISTRICTS } = require("../../Utils/blackMarketEngine");
@@ -199,7 +199,7 @@ module.exports = {
                         const lines = list.length
                             ? list.map((f, idx) => `**${idx + 1}.** **${f.name}** ${f.tag ? `[\`${f.tag}\`]` : ""} — ID: \`${f.factionId}\` • membros ${f.members?.length || 0}`).join("\n")
                             : "Nenhuma facção criada ainda.";
-                        const e = new Discord.MessageEmbed().setTitle("🏴 Facções do Submundo").setColor("DARK_BUT_NOT_BLACK").setDescription(lines);
+                        const e = new Discord.EmbedBuilder().setTitle("🏴 Facções do Submundo").setColor("DarkButNotBlack").setDescription(lines);
                         return safe(i.editReply({ embeds: [e], components: [row] }));
                     }
 
@@ -216,7 +216,7 @@ module.exports = {
                             })
                             .join("\n")
                             .slice(0, 3900);
-                        const e = new Discord.MessageEmbed().setTitle("🗺️ Territórios").setColor("BLURPLE").setDescription(lines || "-");
+                        const e = new Discord.EmbedBuilder().setTitle("🗺️ Territórios").setColor("Blurple").setDescription(lines || "-");
                         return safe(i.editReply({ embeds: [e], components: [row] }));
                     }
 
@@ -227,14 +227,16 @@ module.exports = {
                         const f = await client.factiondb.findOne({ guildID: interaction.guildId, factionId: faction.factionId });
                         if (!f) return safe(i.followUp({ content: "❌ Sua facção não existe mais.", ephemeral: true }));
                         const members = (f.members || []).slice(0, 20).map((m) => `<@${m.userId}>`).join("\n") || "-";
-                        const e = new Discord.MessageEmbed()
+                        const e = new Discord.EmbedBuilder()
                             .setTitle(`🏴 ${f.name}${f.tag ? ` [${f.tag}]` : ""}`)
-                            .setColor("DARK_BUT_NOT_BLACK")
-                            .addField("ID", `\`${f.factionId}\``, true)
-                            .addField("Líder", `<@${f.leaderId}>`, true)
-                            .addField("Membros (Top 20)", members, false)
-                            .addField("Cofre", formatMoney(f.treasury || 0), true)
-                            .addField("Reputação", String(f.rep || 0), true);
+                            .setColor("DarkButNotBlack")
+                            .addFields(
+                                { name: "ID", value: `\`${f.factionId}\``, inline: true },
+                                { name: "Líder", value: `<@${f.leaderId}>`, inline: true },
+                                { name: "Membros (Top 20)", value: members, inline: false },
+                                { name: "Cofre", value: formatMoney(f.treasury || 0), inline: true },
+                                { name: "Reputação", value: String(f.rep || 0), inline: true }
+                            );
                         return safe(i.editReply({ embeds: [e], components: [row] }));
                     }
 

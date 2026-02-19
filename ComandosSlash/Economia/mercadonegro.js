@@ -1,4 +1,4 @@
-const Discord = require("../../Utils/djs");
+const Discord = require("discord.js");
 const { getRandomGifUrl } = require("../../Utils/giphy");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
 const { formatMoney, debitWalletIfEnough, creditWallet, errorEmbed, creditDirtyMoney, debitDirtyMoneyIfEnough } = require("../../Utils/economy");
@@ -534,9 +534,9 @@ module.exports = {
                             : null;
 
                         if (caseId) {
-                            const embedAlert = new Discord.MessageEmbed()
+                            const embedAlert = new Discord.EmbedBuilder()
                                 .setTitle("🚨 ALERTA: Tráfico em andamento")
-                                .setColor("ORANGE")
+                                .setColor("Orange")
                                 .setDescription(`Distrito: **${district.name}**\nCaso: **${caseId}**\nTempo: <t:${Math.floor(hotUntil / 1000)}:R>`);
                             await trySendAlert(client, g, { embeds: [embedAlert] });
                         }
@@ -591,9 +591,9 @@ module.exports = {
                                 data: { front, amount },
                             });
                             if (caseId) {
-                                const embedAlert = new Discord.MessageEmbed()
+                                const embedAlert = new Discord.EmbedBuilder()
                                     .setTitle("🚨 ALERTA: Lavagem suspeita")
-                                    .setColor("DARK_RED")
+                                    .setColor("DarkRed")
                                     .setDescription(`Caso: **${caseId}**\nValor: **${formatMoney(amount)}**\nTempo: 1 minuto`);
                                 await trySendAlert(client, g, { embeds: [embedAlert] });
                             }
@@ -618,7 +618,7 @@ module.exports = {
                         const lines = top.length
                             ? top.map((uu, idx) => `**${idx + 1}.** <@${uu.userID}> — ${formatMoney(uu.stats?.criminalProfit || 0)} lucro • ${uu.stats?.criminalRuns || 0} runs`).join("\n")
                             : "Sem dados ainda.";
-                        const e = new Discord.MessageEmbed().setTitle("🏴 Ranking do Submundo").setColor("DARK_BUT_NOT_BLACK").setDescription(lines);
+                        const e = new Discord.EmbedBuilder().setTitle("🏴 Ranking do Submundo").setColor("DarkButNotBlack").setDescription(lines);
                         return safe(i.editReply({ embeds: [e], components: [row] }));
                     }
 

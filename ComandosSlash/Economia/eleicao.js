@@ -1,4 +1,4 @@
-const Discord = require("../../Utils/djs");
+const Discord = require("discord.js");
 const { formatMoney, debitWalletIfEnough } = require("../../Utils/economy");
 const logger = require("../../Utils/logger");
 const { replyOrEdit } = require("../../Utils/commandKit");
@@ -166,11 +166,11 @@ module.exports = {
                             ? top.map((r, idx) => `**${idx + 1}.** <@${r.id}> — **${r.votes}** votos (${r.paid} pagos)`).join("\n")
                             : "Nenhum voto ainda.";
                         
-                        const e = new Discord.MessageEmbed()
+                        const e = new Discord.EmbedBuilder()
                             .setTitle("📊 Placar da Eleição")
-                            .setColor("BLURPLE")
+                            .setColor("Blurple")
                             .setDescription(isActive ? `Termina <t:${Math.floor((freshEco.election.endsAt||0)/1000)}:R>` : "Eleição encerrada.")
-                            .addField("Ranking Top 10", lines);
+                            .addFields({ name: "Ranking Top 10", value: lines });
                         
                         return safe(i.editReply({ embeds: [e], components: [row] }));
                     }

@@ -1,4 +1,4 @@
-const Discord = require("../../Utils/djs");
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require("discord.js");
 const logger = require("../../Utils/logger");
 const { safe } = require("../../Utils/interactions");
 const { replyOrEdit, replyOrEditFetch } = require("../../Utils/commandKit");
@@ -45,14 +45,14 @@ module.exports = {
             const item = QUESTIONS[Math.floor(Math.random() * QUESTIONS.length)];
             const correct = item.c;
 
-            const row = new Discord.ActionRowBuilder().addComponents(
-                new Discord.ButtonBuilder().setCustomId("q0").setLabel(item.a[0]).setStyle(Discord.ButtonStyle.Primary),
-                new Discord.ButtonBuilder().setCustomId("q1").setLabel(item.a[1]).setStyle(Discord.ButtonStyle.Primary),
-                new Discord.ButtonBuilder().setCustomId("q2").setLabel(item.a[2]).setStyle(Discord.ButtonStyle.Primary),
-                new Discord.ButtonBuilder().setCustomId("q3").setLabel(item.a[3]).setStyle(Discord.ButtonStyle.Primary)
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId("q0").setLabel(item.a[0]).setStyle(ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId("q1").setLabel(item.a[1]).setStyle(ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId("q2").setLabel(item.a[2]).setStyle(ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId("q3").setLabel(item.a[3]).setStyle(ButtonStyle.Primary)
             );
 
-            const embed = new Discord.EmbedBuilder()
+            const embed = new EmbedBuilder()
                 .setTitle("🧠 Quiz")
                 .setColor("Blurple")
                 .setDescription(item.q)
@@ -62,7 +62,7 @@ module.exports = {
             if (!msg) return;
 
             const collector = msg.createMessageComponentCollector({
-                componentType: Discord.ComponentType.Button,
+                componentType: ComponentType.Button,
                 filter: (i) => i.user.id === interaction.user.id,
                 time: 20000,
                 max: 1
@@ -79,7 +79,7 @@ module.exports = {
                 else current.loses += 1;
                 scores.set(interaction.user.id, current);
 
-                const end = new Discord.EmbedBuilder()
+                const end = new EmbedBuilder()
                     .setTitle("🧠 Quiz - Resultado")
                     .setColor(ok ? "Green" : "Red")
                     .setDescription(
@@ -95,7 +95,7 @@ module.exports = {
 
             collector.on("end", async (collected) => {
                 if (collected.size === 0) {
-                    const end = new Discord.EmbedBuilder()
+                    const end = new EmbedBuilder()
                         .setTitle("🧠 Quiz")
                         .setColor("Grey")
                         .setDescription(`⏰ Tempo esgotado!\n\nCorreta: **${item.a[correct]}**`);

@@ -1,4 +1,4 @@
-const Discord = require("../../Utils/djs");
+const Discord = require("discord.js");
 const { ensureEconomyAllowed } = require("../../Utils/economyGuard");
 const { formatMoney, creditWallet } = require("../../Utils/economy");
 const { getPolice, isChief, isOfficer } = require("../../Utils/police");
@@ -279,13 +279,15 @@ module.exports = {
                         const c = await client.policeCasedb.findOne({ guildID: interaction.guildId, caseId: id });
                         if (!c) return safe(i.followUp({ content: "❌ Caso não encontrado.", ephemeral: true }));
                         const last = (c.evidence || []).slice(-6).map((e) => `• ${e.kind} <t:${Math.floor((e.at || 0) / 1000)}:R>`).join("\n") || "-";
-                        const e = new Discord.MessageEmbed()
+                        const e = new Discord.EmbedBuilder()
                             .setTitle(`🗂️ Caso ${c.caseId}`)
-                            .setColor("DARK_BUT_NOT_BLACK")
+                            .setColor("DarkButNotBlack")
                             .setDescription(`Suspeito: <@${c.suspectId}>\nStatus: **${c.status}**\nProgresso: **${c.progress || 0}%**`)
-                            .addField("Valor estimado", formatMoney(c.estimatedValue || 0), true)
-                            .addField("Risco", `${c.riskScore || 0}/100`, true)
-                            .addField("Evidências recentes", last, false);
+                            .addFields(
+                                { name: "Valor estimado", value: formatMoney(c.estimatedValue || 0), inline: true },
+                                { name: "Risco", value: `${c.riskScore || 0}/100`, inline: true },
+                                { name: "Evidências recentes", value: last, inline: false }
+                            );
                         return safe(i.editReply({ embeds: [e], components: [row] }));
                     }
 
@@ -448,7 +450,7 @@ module.exports = {
                                   .join("\n")
                             : "Nenhum alerta ativo agora.";
 
-                        const e = new Discord.MessageEmbed().setTitle("🚨 Alertas em Andamento").setColor("RED").setDescription(lines.slice(0, 3900));
+                        const e = new Discord.EmbedBuilder().setTitle("🚨 Alertas em Andamento").setColor("Red").setDescription(lines.slice(0, 3900));
                         return safe(i.editReply({ embeds: [e], components: [row] }));
                     }
 

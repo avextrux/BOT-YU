@@ -1,4 +1,4 @@
-const Discord = require("../../Utils/djs");
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require("discord.js");
 const { replyOrEditFetch } = require("../../Utils/commandKit");
 
 module.exports = {
@@ -7,24 +7,24 @@ module.exports = {
     type: 'CHAT_INPUT',
     run: async (client, interaction) => {
         try {
-            const embed = new Discord.EmbedBuilder()
+            const embed = new EmbedBuilder()
                 .setTitle("✂️ Jokenpô")
                 .setColor("Blue")
                 .setDescription("Escolha sua jogada abaixo:")
                 .setFooter({ text: "Você tem 30 segundos para escolher." });
 
-            const row = new Discord.ActionRowBuilder()
+            const row = new ActionRowBuilder()
                 .addComponents(
-                    new Discord.ButtonBuilder().setCustomId('pedra').setLabel('Pedra').setStyle(Discord.ButtonStyle.Secondary).setEmoji('🪨'),
-                    new Discord.ButtonBuilder().setCustomId('papel').setLabel('Papel').setStyle(Discord.ButtonStyle.Secondary).setEmoji('📄'),
-                    new Discord.ButtonBuilder().setCustomId('tesoura').setLabel('Tesoura').setStyle(Discord.ButtonStyle.Secondary).setEmoji('✂️')
+                    new ButtonBuilder().setCustomId('pedra').setLabel('Pedra').setStyle(ButtonStyle.Secondary).setEmoji('🪨'),
+                    new ButtonBuilder().setCustomId('papel').setLabel('Papel').setStyle(ButtonStyle.Secondary).setEmoji('📄'),
+                    new ButtonBuilder().setCustomId('tesoura').setLabel('Tesoura').setStyle(ButtonStyle.Secondary).setEmoji('✂️')
                 );
 
             const msg = await replyOrEditFetch(interaction, { embeds: [embed], components: [row] });
             if (!msg) return;
 
             const collector = msg.createMessageComponentCollector({ 
-                componentType: Discord.ComponentType.Button,
+                componentType: ComponentType.Button,
                 filter: i => i.user.id === interaction.user.id, 
                 time: 30000, 
                 max: 1 
@@ -53,7 +53,7 @@ module.exports = {
                     cor = "Red";
                 }
 
-                const resultEmbed = new Discord.EmbedBuilder()
+                const resultEmbed = new EmbedBuilder()
                     .setTitle("✂️ Jokenpô - Resultado")
                     .setColor(cor)
                     .addFields(
@@ -68,7 +68,7 @@ module.exports = {
 
             collector.on('end', collected => {
                 if (collected.size === 0) {
-                    interaction.editReply({ embeds: [new Discord.EmbedBuilder().setColor("Red").setDescription("⏰ Tempo esgotado.")], components: [] }).catch(() => {});
+                    interaction.editReply({ embeds: [new EmbedBuilder().setColor("Red").setDescription("⏰ Tempo esgotado.")], components: [] }).catch(() => {});
                 }
             });
 

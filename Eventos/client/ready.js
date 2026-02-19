@@ -1,31 +1,23 @@
 const client = require("../../index");
 const mongo = require("mongoose");
 const logger = require("../../Utils/logger");
-const Discord = require("../../Utils/djs");
+const { Events, ActivityType } = require("discord.js");
 
-client.on(Discord.Events?.ClientReady || "ready", () => {
+client.on(Events.ClientReady, () => {
 
     const activities = [
-        { name: `💸 Gerenciando a economia de ${client.users.cache.size} usuários!`, type: "STREAMING", url: "https://www.twitch.tv/discord" },
-        { name: `🎮 Jogando com a sorte`, type: "PLAYING" },
-        { name: `🛠️ Use /help para ajuda`, type: "LISTENING" },
-        { name: `👀 De olho em ${client.guilds.cache.size} servidores`, type: "WATCHING" },
-        { name: `🚀 Versão 2.0 - Mais rápida!`, type: "STREAMING", url: "https://www.twitch.tv/discord" }
+        { name: `💸 Gerenciando a economia de ${client.users.cache.size} usuários!`, type: ActivityType.Streaming, url: "https://www.twitch.tv/discord" },
+        { name: `🎮 Jogando com a sorte`, type: ActivityType.Playing },
+        { name: `🛠️ Use /help para ajuda`, type: ActivityType.Listening },
+        { name: `👀 De olho em ${client.guilds.cache.size} servidores`, type: ActivityType.Watching },
+        { name: `🚀 Versão 2.0 - Mais rápida!`, type: ActivityType.Streaming, url: "https://www.twitch.tv/discord" }
     ];
 
     let i = 0;
     setInterval(() => {
         const activity = activities[i++ % activities.length];
-        const typeMap = {
-            PLAYING: Discord.ActivityType?.Playing,
-            STREAMING: Discord.ActivityType?.Streaming,
-            LISTENING: Discord.ActivityType?.Listening,
-            WATCHING: Discord.ActivityType?.Watching,
-            COMPETING: Discord.ActivityType?.Competing,
-        };
-        const type = typeMap[String(activity.type || "").toUpperCase()] ?? activity.type;
         client.user.setActivity(activity.name, { 
-            type, 
+            type: activity.type, 
             url: activity.url 
         });
     }, 60 * 1000);
